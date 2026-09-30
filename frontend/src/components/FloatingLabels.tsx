@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { FONT_URL } from "../config";
 import { useBrainStore } from "../store/brainStore";
 import { livePositions, searchMatches, useNotesStore, visibleNotes } from "../store/notesStore";
-import { lit } from "../store/arousal";
+import { arousal, lit } from "../store/arousal";
 import { resolveLabelCollisions, ScreenLabelInput, V3 } from "./labelLayout2D";
 
 const GROUP_FONT = 0.22;
@@ -94,6 +94,8 @@ export function FloatingLabels() {
   const size = useThree((s) => s.size);
   const [placed, setPlaced] = useState<Placed[]>([]);
   const last = useRef(0);
+  const shownLevel = useRef(-1);
+  const [, setTick] = useState(0);
 
   const relayout = () => {
     const specs = collectSpecs();
@@ -109,6 +111,12 @@ export function FloatingLabels() {
 
   useFrame(() => {
     if (performance.now() - last.current >= RELAYOUT_MS) relayout();
+    // Smooth arousal dimming: fillOpacity reads arousal.level at render time,
+    // so re-render while the level is moving (it settles, so this stops on its own).
+    if (Math.abs(arousal.level - shownLevel.current) > 0.02) {
+      shownLevel.current = arousal.level;
+      setTick((t) => t + 1);
+    }
   });
 
   return (
