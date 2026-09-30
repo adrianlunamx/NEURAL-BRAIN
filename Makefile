@@ -1,4 +1,4 @@
-.PHONY: setup run backend frontend test build seed hook-test clean
+.PHONY: setup run backend frontend test build seed hooks unhooks hook-test clean
 
 setup:      ## install backend + frontend dependencies
 	./scripts/setup.sh
@@ -18,8 +18,14 @@ test:       ## backend test-suite (offline, no API key needed)
 build:      ## type-check + production build of the UI
 	cd frontend && npm run build
 
-seed:       ## load the 30 demo memories into the running brain
+seed:       ## load the demo notes into the running brain
 	python3 scripts/seed_knowledge.py
+
+hooks:      ## install the Claude Code hooks in ~/.claude/settings.json (Cursor: install_hooks.py --cursor)
+	backend/.venv/bin/python scripts/install_hooks.py
+
+unhooks:    ## remove them again
+	backend/.venv/bin/python scripts/install_hooks.py --uninstall
 
 hook-test:  ## fire a fake Claude Code "Read" hook at the running brain
 	echo '{"tool_name":"Read","tool_input":{"file_path":"src/auth.py"},"cwd":"/tmp"}' | python3 backend/hooks/hook_handler.py

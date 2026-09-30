@@ -22,11 +22,25 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import sys
+import urllib.parse
 import urllib.request
 
 BACKEND_URL = os.environ.get("NEURAL_BRAIN_URL", "http://127.0.0.1:8000")
 TIMEOUT_SECONDS = 2.0
+PROBE_SECONDS = 0.25
+
+
+def backend_up() -> bool:
+    """Fast TCP probe: on Windows a refused connect is retried for ~2 s, and
+    Cursor waits for the "before*" hooks, so a stopped brain would slow it down."""
+    url = urllib.parse.urlsplit(BACKEND_URL)
+    try:
+        socket.create_connection((url.hostname, url.port or 80), timeout=PROBE_SECONDS).close()
+        return True
+    except OSError:
+        return False
 
 # what each "before*" hook must print so Cursor carries on
 ALLOW = {
@@ -101,7 +115,7 @@ def main() -> int:
         payload = json.loads(sys.stdin.read() or "{}")
         name = str(payload.get("hook_event_name") or payload.get("hookEventName") or "")
         body = build_event(payload)
-        if body is not None:
+        if body is not None and backend_up():
             post(body)
     except Exception:
         pass  # never break the user's Cursor session

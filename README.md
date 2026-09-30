@@ -132,15 +132,15 @@ Detalle técnico en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 Requisitos: **Python 3.10+**, **Node 20.19+** y un navegador con WebGL2.
 
 ```bash
-git clone https://github.com/jhernandezl2c-hash/MATCH-WITH-YOU-.git neural-brain && cd neural-brain
-./scripts/setup.sh        # venv + dependencias de Python y npm (la 1ª vez descarga el modelo de embeddings)
+git clone https://github.com/jhernandezl2c-hash/NEURAL-BRAIN.git neural-brain && cd neural-brain
+./scripts/setup.sh        # venv + dependencias de Python y npm (sin PyTorch: ~400 MB)
 ./scripts/run.sh          # API en :8000 + interfaz en :5173
 ```
 
 Abre **http://localhost:5173**. Para tener algo con qué jugar:
 
 ```bash
-make seed                 # 65 notas de ejemplo en 10 grupos, con [[wiki]] links entre ellas
+make seed                 # notas de ejemplo en 10 grupos, con [[wiki]] links entre ellas (en un segundo)
 ```
 
 Pulsa **Probar** en el panel *Ahora* para ver a dos agentes simulados trabajando. O escribe en el buscador *«¿Qué falta en el login?»* y pulsa **Enter**.
@@ -149,9 +149,12 @@ Pulsa **Probar** en el panel *Ahora* para ver a dos agentes simulados trabajando
 <summary><b>Windows (PowerShell)</b></summary>
 
 ```powershell
-.\scripts\setup.ps1
-.\scripts\run.ps1        # abre dos ventanas: API y UI
+.\scripts\run.ps1            # instala si hace falta, abre API y UI en dos ventanas y el navegador
+.\scripts\stop.ps1           # cierra las dos
+.\scripts\install-hooks.ps1  # opcional: ves a Claude Code trabajar en el cerebro
 ```
+
+Si PowerShell no deja ejecutar scripts: `powershell -ExecutionPolicy Bypass -File .\scripts\run.ps1`.
 </details>
 
 <details>
@@ -169,26 +172,27 @@ cd frontend && npm install && cp .env.example .env && npm run dev
 ```
 </details>
 
-`make` · `setup` `run` `backend` `frontend` `test` `build` `seed` `hook-test` `clean` (borra el cerebro: vectores + repo Git del grafo).
+`make` · `setup` `run` `backend` `frontend` `test` `build` `seed` `hooks` `unhooks` `hook-test` `clean` (borra el cerebro: vectores + repo Git del grafo).
 
 ## Conectar tu agente
 
-Todos los adaptadores usan solo la biblioteca estándar de Python, tienen un timeout de 2 s y **nunca bloquean al agente**: si el cerebro está apagado, el agente sigue igual. Sustituye `/ruta/a/neural-brain` por la ruta real.
+Todos los adaptadores usan solo la biblioteca estándar de Python, tienen un timeout de 2 s y **nunca bloquean al agente**: si el cerebro está apagado, lo detectan en 0,25 s y el agente sigue igual.
 
 <details open>
 <summary><b>Claude Code</b>: completo, con subagentes</summary>
 
-Fusiona [`backend/hooks/claude_settings.example.json`](backend/hooks/claude_settings.example.json) en `~/.claude/settings.json`. Registra `PreToolUse` (lanzamiento de subagentes), `PostToolUse` (todas las herramientas), `UserPromptSubmit`, `Notification`, `Stop`, `SubagentStart` y `SubagentStop`.
-
 ```bash
-make hook-test   # simula un Read: aparece la sesión en el panel Ahora
+make hooks                      # Windows: .\scripts\install-hooks.ps1
+make hook-test                  # simula un Read: aparece la sesión en el panel Ahora
 ```
+
+El instalador (`scripts/install_hooks.py`) añade los hooks a `~/.claude/settings.json` sin tocar el resto: hace copia de seguridad, reemplaza una instalación anterior y los marca `async`, así Claude Code nunca espera al cerebro. `--project DIR` los instala solo para un proyecto y `--uninstall` los quita. Registra `PreToolUse` (lanzamiento de subagentes), `PostToolUse` (todas las herramientas), `UserPromptSubmit`, `Notification`, `Stop`, `SubagentStart` y `SubagentStop`. A mano: [`backend/hooks/claude_settings.example.json`](backend/hooks/claude_settings.example.json).
 </details>
 
 <details>
 <summary><b>Cursor</b>: hooks de Cursor 1.7+</summary>
 
-Copia [`backend/hooks/cursor_hooks.example.json`](backend/hooks/cursor_hooks.example.json) a `~/.cursor/hooks.json` (o a `.cursor/hooks.json` en tu proyecto). El adaptador `cursor_hook.py` traduce `beforeSubmitPrompt`, `beforeReadFile`, `afterFileEdit` (con +/− líneas), `beforeShellExecution`, `beforeMCPExecution` y `stop`. Siempre responde *allow*: solo observa. Los hooks de Cursor están en beta, así que el adaptador lee los campos de forma tolerante.
+`python scripts/install_hooks.py --cursor` (con el Python de `backend/.venv`) los añade a `~/.cursor/hooks.json`; a mano, copia [`backend/hooks/cursor_hooks.example.json`](backend/hooks/cursor_hooks.example.json) a `~/.cursor/hooks.json` (o a `.cursor/hooks.json` en tu proyecto). El adaptador `cursor_hook.py` traduce `beforeSubmitPrompt`, `beforeReadFile`, `afterFileEdit` (con +/− líneas), `beforeShellExecution`, `beforeMCPExecution` y `stop`. Siempre responde *allow*: solo observa. Los hooks de Cursor están en beta, así que el adaptador lee los campos de forma tolerante.
 </details>
 
 <details>
@@ -220,7 +224,7 @@ curl -X POST localhost:8000/hooks/event -H 'Content-Type: application/json' -d '
 Acciones: `lee` `busca` `edita` `crea` `git` `commit` `compila` `prueba` `script` `agente` `espera`. Si el archivo que toca un agente es una nota (por ruta, nombre o título), su marcador viaja a esa nota y la hace brillar.
 </details>
 
-**Añadir notas** a la memoria: `POST /ingest` con `{text, title, group, note_type, tags, path}`. Los `[[wiki]]` del texto se convierten en conexiones.
+**Añadir notas** a la memoria: `POST /ingest` con `{text, title, group, note_type, tags, path}`, o muchas de golpe con `POST /ingest/batch` y `{notes: [...]}`. Los `[[wiki]]` del texto se convierten en conexiones.
 
 ## Uso
 
@@ -247,6 +251,7 @@ Ratón: arrastrar = rotar · rueda = zoom · clic derecho = desplazar · clic en
 | Método | Ruta | |
 |---|---|---|
 | POST | `/ingest` | una nota `{text, title?, group?, note_type?, tags?, path?}` |
+| POST | `/ingest/batch` | hasta 200 notas `{notes: [...]}`, embebidas juntas |
 | GET | `/notes` | notas, grupos, tipos, conexiones tipadas y problemas |
 | POST | `/hooks/event` | evento de un agente `{client, event, tool_name, target, session_id, agent_id, lines_added, …}` |
 | GET | `/activity` | sesiones (con su agente), subagentes, acciones, archivos +/− y ritmo |

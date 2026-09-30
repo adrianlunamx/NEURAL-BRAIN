@@ -6,6 +6,7 @@ Base `http://localhost:8000` · Swagger en `/docs`. Modelos en `backend/app/mode
 |---|---|---|---|
 | GET | `/health` | — | `{ok, service, llm, model, embeddings}` |
 | POST | `/ingest` | `{text, source="manual", title?, group?, note_type?, tags?[], path?, region_hint?, label?}` | `{neuron_ids, count}` — una nota; una neurona por frase, máx. 12 |
+| POST | `/ingest/batch` | `{notes: [<body de /ingest>, …]}` (1–200) | `{notes: [{neuron_ids, count}], count}` — mismas reglas que `/ingest`, un solo paso por el modelo |
 | GET | `/notes` | — | `{notes:[{id,title,group,type,text,tags,path,source,created_at,region,neuron_ids,position,degree}], links:[{source,target,type,weight}], groups:[{name,color,region,anchor,count}], types, link_types, problems:[{kind,note_id,detail}], generated_at}` |
 | GET | `/activity` | — | `{now, sessions:[{id,project,status,detail,main,agents[],active_agents}], events[], files:[{path,project,added,removed,last_at}], rate[120], totals, note_usage}` |
 | POST | `/activity/demo` | — | `{ok, running}` — sesión simulada por el mismo camino que los hooks |

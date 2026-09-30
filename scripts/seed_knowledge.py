@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Load the demo notes into a running brain.
 
-Usage (backend running):  python3 scripts/seed_knowledge.py [http://localhost:8000]
+Usage (backend running):  python3 scripts/seed_knowledge.py [http://127.0.0.1:8000]
 
 1. backend/seed_notes.json: project notes (memory, CLAUDE.md, docs, handoffs...)
    with group, type, path, tags and [[wiki]] links between them.
 2. backend/seed_knowledge.json: 30 AI concepts and facts (group "IA · Conceptos").
-Each note goes to POST /ingest.
+All notes go to POST /ingest/batch in one request.
 """
 import json
 import sys
@@ -15,26 +15,28 @@ from pathlib import Path
 
 URL = (sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000").rstrip("/")
 BACKEND = Path(__file__).resolve().parent.parent / "backend"
+BATCH = 200  # server-side limit per request
 
 
-def ingest(body: dict) -> list:
-    req = urllib.request.Request(f"{URL}/ingest", data=json.dumps(body).encode(),
+def ingest_batch(notes: list) -> int:
+    req = urllib.request.Request(f"{URL}/ingest/batch", data=json.dumps({"notes": notes}).encode(),
                                  headers={"Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return json.loads(resp.read())["neuron_ids"]
+    with urllib.request.urlopen(req, timeout=300) as resp:
+        return len(json.loads(resp.read())["notes"])
 
 
-notes = json.loads((BACKEND / "seed_notes.json").read_text("utf-8"))
-for n in notes:
-    ingest({"text": n["text"], "source": "note", "title": n["title"], "group": n["group"],
-            "note_type": n["type"], "path": n.get("path"), "tags": n.get("tags", [])})
+bodies = []
+for n in json.loads((BACKEND / "seed_notes.json").read_text("utf-8")):
+    bodies.append({"text": n["text"], "source": "note", "title": n["title"], "group": n["group"],
+                   "note_type": n["type"], "path": n.get("path"), "tags": n.get("tags", [])})
 
-facts = json.loads((BACKEND / "seed_knowledge.json").read_text("utf-8"))
-for item in facts:
+for item in json.loads((BACKEND / "seed_knowledge.json").read_text("utf-8")):
     meta = item.get("metadata", {})
     concept = meta.get("type") == "concept"
-    ingest({"text": item["content"], "source": "note",
-            "title": meta.get("title") or item["content"].split(",")[0][:60],
-            "group": "IA · Conceptos", "note_type": "referencia" if concept else "documento",
-            "tags": meta.get("tags", [])})
-print(f"{len(notes) + len(facts)} notes ingested")
+    bodies.append({"text": item["content"], "source": "note",
+                   "title": meta.get("title") or item["content"].split(",")[0][:60],
+                   "group": "IA · Conceptos", "note_type": "referencia" if concept else "documento",
+                   "tags": meta.get("tags", [])})
+
+done = sum(ingest_batch(bodies[i:i + BATCH]) for i in range(0, len(bodies), BATCH))
+print(f"{done} notes ingested")

@@ -43,6 +43,24 @@ def test_ingest_query_and_hooks(client):
     assert h.json()["region"] == "temporal"
 
 
+def test_ingest_batch(client):
+    notes = [
+        {"text": "El cerebelo coordina el movimiento. También ajusta la postura", "title": "Cerebelo",
+         "group": "Anatomía", "tags": ["motor"]},
+        {"text": "La corteza visual procesa lo que vemos", "title": "Visión", "group": "Anatomía"},
+    ]
+    r = client.post("/ingest/batch", json={"notes": notes})
+    assert r.status_code == 200
+    body = r.json()
+    assert [n["count"] for n in body["notes"]] == [2, 1] and body["count"] == 3
+    titles = {n["title"]: n for n in client.get("/notes").json()["notes"]}
+    assert len(titles["Cerebelo"]["neuron_ids"]) == 2 and titles["Visión"]["group"] == "Anatomía"
+    hits = client.post("/query", json={"text": "coordina el movimiento", "top_k": 3}).json()["hits"]
+    assert hits[0]["id"] in body["notes"][0]["neuron_ids"]
+    wait_idle(client)
+    assert client.post("/ingest/batch", json={"notes": []}).status_code == 422
+
+
 def test_git_commit_log_restore(client):
     first = client.post("/git/commit", json={"message": "checkpoint A"}).json()["commit_hash"]
     client.post("/hooks/event", json={"hook_type": "file_edit", "tool_name": "Edit", "summary": "Edit: main.py"})

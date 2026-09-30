@@ -5,7 +5,7 @@ Set-Location (Join-Path $PSScriptRoot "..")
 Write-Host "> neural-brain setup" -ForegroundColor Cyan
 $py = if (Get-Command py -ErrorAction SilentlyContinue) { "py" } else { "python" }
 
-Write-Host "> backend: virtualenv + dependencies (first run downloads PyTorch)" -ForegroundColor Cyan
+Write-Host "> backend: virtualenv + dependencies (no PyTorch: embeddings run on ONNX)" -ForegroundColor Cyan
 Push-Location backend
 if (-not (Test-Path .venv)) { & $py -m venv .venv }
 & .\.venv\Scripts\python.exe -m pip install --upgrade pip | Out-Null
@@ -25,3 +25,4 @@ Pop-Location
 Write-Host "OK setup complete" -ForegroundColor Green
 Write-Host "  1. edit backend\.env and set ANTHROPIC_API_KEY=sk-ant-..."
 Write-Host "  2. .\scripts\run.ps1   -> http://localhost:5173"
+Write-Host "  3. optional: .\scripts\install-hooks.ps1 to see Claude Code live in the brain"
