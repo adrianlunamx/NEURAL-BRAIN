@@ -13,6 +13,7 @@ venv/
 
 # Runtime storage (vector DB + graph snapshot)
 backend/storage/
+backend/data/
 
 # Node
 node_modules/

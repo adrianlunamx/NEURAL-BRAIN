@@ -1,0 +1,51 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
+          }
+        ]
+      }
+    ]
+  }
+}

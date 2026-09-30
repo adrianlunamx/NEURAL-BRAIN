@@ -1,59 +1,57 @@
-import json
+import time
 
 
-def parse_sse(text: str) -> list[dict]:
-    events = []
-    for block in text.strip().split("\n\n"):
-        for line in block.splitlines():
-            if line.startswith("data: "):
-                events.append(json.loads(line[6:]))
-    return events
+def test_health_graph_regions_fibers(client):
+    assert client.get("/health").json()["ok"] is True
+    low = client.get("/graph", params={"detail": "low"}).json()
+    assert len(low["nodes"]) == 1000 and low["total_neurons"] == 19000
+    assert {n["region"] for n in low["nodes"]} == {
+        "frontal", "parietal", "temporal", "occipital", "hippocampus", "cerebellum"}
+    assert client.get("/graph", params={"detail": "nope"}).status_code == 400
+    assert len(client.get("/regions").json()) == 6
+    fibers = client.get("/fibers").json()
+    assert len(fibers) >= 200 and len(fibers[0]["start"]) == 3
 
 
-def test_health(client):
-    r = client.get("/api/health")
-    assert r.status_code == 200
-    body = r.json()
-    assert body["llm"] is False and body["embeddings"] == "hash"
+def test_ingest_query_and_hooks(client):
+    r = client.post("/ingest", json={"text": "El hipocampo consolida la memoria durante el sueño"})
+    assert r.status_code == 200 and r.json()["count"] == 1
+    client.post("/ingest", json={"text": "Neuromante popularizó el ciberespacio", "region_hint": "occipital"})
+
+    q = client.post("/query", json={"text": "memoria y sueño", "top_k": 5})
+    assert q.status_code == 200
+    body = q.json()
+    assert body["hits"][0]["id"] == r.json()["neuron_ids"][0]
+    assert body["hits"][0]["score"] >= body["hits"][-1]["score"]
+    time.sleep(0.3)  # background phase machine (fast timings in tests)
+    assert client.get("/stats").json()["phase"] == "IDLE"
+
+    h = client.post("/hooks/event", json={"hook_type": "file_read", "tool_name": "Read", "summary": "Read: src/auth.py"})
+    assert h.status_code == 200
+    assert h.json()["region"] == "temporal"
 
 
-def test_ingest_graph_query_reset_flow(client):
-    r = client.post("/api/ingest", json={
-        "content": "ChromaDB guarda embeddings para búsqueda semántica",
-        "metadata": {"type": "fact", "tags": ["busqueda semantica"]},
-    })
-    assert r.status_code == 200
-    node_id = r.json()["node_id"]
-    assert r.json()["connections"] == 1
-
-    g = client.get("/api/graph").json()
-    ids = {n["id"] for n in g["nodes"]}
-    assert node_id in ids and "c_busqueda-semantica" in ids
-    assert g["edges"][0].keys() >= {"from", "to", "weight"}
-    assert all({"x", "y", "z"} <= n["position"].keys() for n in g["nodes"])
-
-    r = client.post("/api/query", json={"question": "¿Dónde se guardan los embeddings?", "animate": False})
-    assert r.status_code == 200
-    assert r.headers["content-type"].startswith("text/event-stream")
-    events = parse_sse(r.text)
-    kinds = [e["type"] for e in events]
-    assert kinds[:2] == ["search", "connect"] and kinds[-2:] == ["synthesize", "done"]
-    assert events[0]["data"]["nodes"][0]["id"] in ids
-
-    assert client.get(f"/api/node/{node_id}").json()["neighbors"]
-    assert client.delete("/api/reset").json()["ok"] is True
-    assert client.get("/api/graph").json()["nodes"] == []
-
-
-def test_seed_endpoint(client):
-    r = client.post("/api/seed")
-    assert r.status_code == 200
-    stats = r.json()["stats"]
-    assert r.json()["ingested"] == 30
-    assert stats["concepts"] > 5 and stats["edges"] > 30
+def test_git_commit_log_restore(client):
+    first = client.post("/git/commit", json={"message": "checkpoint A"}).json()["commit_hash"]
+    client.post("/hooks/event", json={"hook_type": "file_edit", "tool_name": "Edit", "summary": "Edit: main.py"})
+    client.post("/git/commit", json={"message": "checkpoint B"})
+    log = client.get("/git/log").json()
+    assert [e["message"] for e in log[:2]] == ["checkpoint B", "checkpoint A"]
+    restored = client.post("/git/restore", json={"commit_hash": first})
+    assert restored.status_code == 200
+    stats = client.get("/stats").json()
+    assert stats["total_neurons"] == 19000
+    assert client.post("/git/restore", json={"commit_hash": "deadbeef"}).status_code == 404
 
 
 def test_validation(client):
-    assert client.post("/api/ingest", json={"content": "   "}).status_code == 422
-    assert client.post("/api/query", json={"question": ""}).status_code == 422
-    assert client.get("/api/node/nope").status_code == 404
+    assert client.post("/ingest", json={"text": ""}).status_code == 422
+    assert client.post("/query", json={"text": "x", "top_k": 99}).status_code == 422
+
+
+def test_past_questions_are_not_returned_as_sources(client):
+    client.post("/ingest", json={"text": "El hipocampo consolida la memoria durante el sueño"})
+    client.post("/query", json={"text": "memoria y sueño", "top_k": 5})
+    time.sleep(0.3)
+    again = client.post("/query", json={"text": "memoria y sueño", "top_k": 5}).json()
+    assert again["hits"] and all(not h["label"].startswith("query:") for h in again["hits"])
