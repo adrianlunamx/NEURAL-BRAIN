@@ -51,5 +51,6 @@ export function useGraphData() {
     return { nodeMap, neighbors, radius: Math.max(radius, 12) }
   }, [graph])
 
-  return { ...graph, ...derived, loading, error, refresh }
+  // stable identity so streaming tokens elsewhere in the app don't re-render the 3D scene
+  return useMemo(() => ({ ...graph, ...derived, loading, error, refresh }), [graph, derived, loading, error, refresh])
 }

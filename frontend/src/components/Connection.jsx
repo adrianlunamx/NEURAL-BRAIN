@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { QuadraticBezierLine } from '@react-three/drei'
 import * as THREE from 'three'
@@ -49,6 +49,8 @@ function Connection({ id, from, to, weight = 0.5, activation, dimmed }) {
   )
 
   const line = useMemo(() => new THREE.Line(geometry, material), [geometry, material])
+  useEffect(() => () => geometry.dispose(), [geometry])
+  useEffect(() => () => material.dispose(), [material])
 
   useFrame((_, delta) => {
     const t = now()

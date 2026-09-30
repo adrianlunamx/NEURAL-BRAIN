@@ -69,7 +69,8 @@ class Embedder:
                 from sentence_transformers import SentenceTransformer
 
                 self._model = SentenceTransformer(model_name)
-                self.dim = int(self._model.get_sentence_embedding_dimension())
+                # probe instead of get_sentence_embedding_dimension(): stable across ST versions
+                self.dim = int(self._model.encode(["probe"], convert_to_numpy=True).shape[-1])
                 self.backend = "sentence-transformers"
                 logger.info("Embeddings: SentenceTransformer '{}' (dim={})", model_name, self.dim)
                 return

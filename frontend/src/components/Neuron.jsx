@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import glowSource from '../shaders/neuronGlow.glsl?raw'
@@ -39,6 +39,7 @@ function Neuron({ data, activation, phase, phaseAt, hovered, selected, dimmed, o
   const seed = useMemo(() => hash01(data.id) * Math.PI * 2, [data.id])
   const baseColor = useMemo(() => new THREE.Color(colorForType(data.type)), [data.type])
   const glowMat = useMemo(() => createGlowMaterial(baseColor), [baseColor])
+  useEffect(() => () => glowMat.dispose(), [glowMat])
   const bornAt = useRef(now())
   const tmpColor = useMemo(() => new THREE.Color(), [])
 
