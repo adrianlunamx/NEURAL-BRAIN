@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import heapq
 import json
 import math
 import random
@@ -80,6 +81,14 @@ class GraphStore:
         # Per-region id lists for fast sampling.
         self.region_index: Dict[Region, List[str]] = {r: [] for r in Region}
         self.np_rng = np.random.default_rng(seed)
+        # FIX (review #3): lazy min-heap of (last_activated_key, neuron_id)
+        # for recycle picks. INVARIANT: entries may be STALE — a neuron can be
+        # re-activated, recycled, or replaced after its entry was pushed.
+        # _pick_recycle_candidate() validates every popped entry against the
+        # live node and re-pushes a corrected entry when stale, so the heap
+        # converges with NO eager updates on the hot activate() path.
+        self._recycle_heap: List[Tuple[str, str]] = []
+        self._recycle_heap_seed_only: bool = True
 
     # ------------------------------------------------------------------
     # Layout helpers
@@ -134,6 +143,7 @@ class GraphStore:
             self._build_local_edges()
             self._build_fibers()
             self._build_render_order()
+            self._invalidate_recycle_heap()
             return self.graph.number_of_nodes()
 
     def _relayout_v1(self) -> None:
@@ -202,6 +212,30 @@ class GraphStore:
         self.render_order = order
 
     # ------------------------------------------------------------------
+    # Recycle heap (FIX review #3)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _recycle_key(data) -> str:
+        """Heap ordering key: ISO-8601 timestamps sort lexicographically; None -> epoch."""
+        return str(data.get("last_activated_at") or "1970-01-01")
+
+    def _invalidate_recycle_heap(self) -> None:
+        """Drop the heap; it rebuilds lazily on the next pick (bulk state changed)."""
+        self._recycle_heap = []
+        self._recycle_heap_seed_only = True
+
+    def _rebuild_recycle_heap(self, seed_only: bool) -> None:
+        """Heapify all (or only seed) current nodes by last activation."""
+        heap = [
+            (self._recycle_key(d), nid)
+            for nid, d in self.graph.nodes(data=True)
+            if not seed_only or d.get("source") == "seed"
+        ]
+        heapq.heapify(heap)
+        self._recycle_heap = heap
+        self._recycle_heap_seed_only = seed_only
+
+    # ------------------------------------------------------------------
     # Mutation API
     # ------------------------------------------------------------------
     def add_neuron(
@@ -259,15 +293,41 @@ class GraphStore:
             return neuron_id, recycled
 
     def _pick_recycle_candidate(self) -> str:
-        """Least-recently-activated seed neuron (never recycle hook/ingest/query nodes)."""
-        candidates = [
-            (n, d) for n, d in self.graph.nodes(data=True)
-            if d.get("source") == "seed"
-        ]
-        if not candidates:
-            candidates = list(self.graph.nodes(data=True))
-        candidates.sort(key=lambda nd: str(nd[1].get("last_activated_at") or "1970-01-01"))
-        return candidates[0][0]
+        """Least-recently-activated seed neuron (never recycle hook/ingest/query nodes).
+
+        Heap-backed: O(log n) amortized per pick instead of re-sorting ~19k
+        candidates on every add_neuron() once the brain is full. Stale entries
+        (re-activated / recycled / deleted nodes) are discarded or corrected on
+        pop; the lock is held throughout, so the loop always terminates.
+        """
+        if not self._recycle_heap:
+            # First pick after (re)build, or the heap was drained: rebuild from
+            # seed nodes; with no seed nodes left, fall back to every node —
+            # exactly the old behavior.
+            self._rebuild_recycle_heap(seed_only=True)
+            if not self._recycle_heap:
+                self._rebuild_recycle_heap(seed_only=False)
+        while self._recycle_heap:
+            key, nid = heapq.heappop(self._recycle_heap)
+            if nid not in self.graph:
+                continue  # node deleted since the entry was pushed
+            data = self.graph.nodes[nid]
+            if self._recycle_heap_seed_only and data.get("source") != "seed":
+                continue  # already recycled: no longer a seed node
+            current = self._recycle_key(data)
+            if current != key:
+                # Stale entry: the neuron was activated after this entry was
+                # pushed. Re-push with the fresh timestamp so it sinks to its
+                # correct (later) recycle position.
+                heapq.heappush(self._recycle_heap, (current, nid))
+                continue
+            return nid
+        # Defensive: the heap drained without yielding (all entries invalid).
+        # Rebuild once from everything and take the top.
+        self._rebuild_recycle_heap(seed_only=False)
+        if self._recycle_heap:
+            return heapq.heappop(self._recycle_heap)[1]
+        raise RuntimeError("cannot pick a recycle candidate from an empty graph")
 
     def connect(self, source: str, target: str,
                 weight: float = 0.6, edge_type: EdgeType = EdgeType.LOCAL) -> bool:
@@ -452,6 +512,7 @@ class GraphStore:
             ordered = set(self.render_order)
             self.render_order.extend(n for n in graph.nodes if n not in ordered)
             self.event_count = int(data.get("event_count", 0))
+            self._invalidate_recycle_heap()
             if int(data.get("version", 1)) < SNAPSHOT_VERSION:
                 self._relayout_v1()
 
