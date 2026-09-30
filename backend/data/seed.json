@@ -1,0 +1,314 @@
+[
+  {
+    "content": "Las redes neuronales artificiales son modelos compuestos por capas de neuronas que aprenden ajustando pesos mediante descenso de gradiente.",
+    "metadata": {
+      "type": "concept",
+      "tags": [
+        "inteligencia artificial",
+        "redes neuronales"
+      ],
+      "title": "Redes neuronales"
+    }
+  },
+  {
+    "content": "Backpropagation calcula el gradiente del error respecto a cada peso aplicando la regla de la cadena desde la salida hacia la entrada.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "redes neuronales",
+        "aprendizaje"
+      ]
+    }
+  },
+  {
+    "content": "La arquitectura Transformer, presentada en 2017 en 'Attention Is All You Need', reemplazó la recurrencia por mecanismos de atención.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "transformers",
+        "inteligencia artificial"
+      ]
+    }
+  },
+  {
+    "content": "El mecanismo de self-attention permite que cada token pondere la relevancia de todos los demás tokens de la secuencia.",
+    "metadata": {
+      "type": "concept",
+      "tags": [
+        "transformers",
+        "atencion"
+      ],
+      "title": "Self-attention"
+    }
+  },
+  {
+    "content": "Los modelos de lenguaje grandes (LLM) predicen el siguiente token y se entrenan con enormes corpus de texto.",
+    "metadata": {
+      "type": "concept",
+      "tags": [
+        "llm",
+        "inteligencia artificial"
+      ],
+      "title": "LLM"
+    }
+  },
+  {
+    "content": "Claude es una familia de modelos de lenguaje de Anthropic que puede razonar, programar y analizar documentos largos.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "llm",
+        "anthropic"
+      ]
+    }
+  },
+  {
+    "content": "Un embedding es un vector denso que representa el significado de un texto; textos parecidos quedan cerca en el espacio vectorial.",
+    "metadata": {
+      "type": "concept",
+      "tags": [
+        "embeddings",
+        "busqueda semantica"
+      ],
+      "title": "Embeddings"
+    }
+  },
+  {
+    "content": "La similitud coseno mide el ángulo entre dos vectores y es la métrica habitual para comparar embeddings.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "embeddings",
+        "matematicas"
+      ]
+    }
+  },
+  {
+    "content": "RAG (Retrieval-Augmented Generation) recupera documentos relevantes y los pasa como contexto al LLM para reducir alucinaciones.",
+    "metadata": {
+      "type": "concept",
+      "tags": [
+        "rag",
+        "llm",
+        "busqueda semantica"
+      ],
+      "title": "RAG"
+    }
+  },
+  {
+    "content": "Una base de datos vectorial como ChromaDB indexa embeddings para encontrar vecinos más cercanos en milisegundos.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "busqueda semantica",
+        "bases de datos"
+      ]
+    }
+  },
+  {
+    "content": "Un grafo de conocimiento representa entidades como nodos y sus relaciones como aristas, permitiendo razonar por caminos.",
+    "metadata": {
+      "type": "concept",
+      "tags": [
+        "grafos",
+        "segundo cerebro"
+      ],
+      "title": "Grafo de conocimiento"
+    }
+  },
+  {
+    "content": "Los layouts force-directed simulan resortes entre nodos conectados y repulsión entre todos para dibujar grafos de forma legible.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "grafos",
+        "visualizacion"
+      ]
+    }
+  },
+  {
+    "content": "El método Zettelkasten de Niklas Luhmann organiza notas atómicas enlazadas entre sí para generar ideas nuevas.",
+    "metadata": {
+      "type": "concept",
+      "tags": [
+        "segundo cerebro",
+        "notas"
+      ],
+      "title": "Zettelkasten"
+    }
+  },
+  {
+    "content": "Un 'segundo cerebro' es un sistema externo donde capturas, organizas y conectas lo que aprendes para no depender de la memoria.",
+    "metadata": {
+      "type": "concept",
+      "tags": [
+        "segundo cerebro",
+        "productividad"
+      ],
+      "title": "Segundo cerebro"
+    }
+  },
+  {
+    "content": "El método PARA organiza la información en Proyectos, Áreas, Recursos y Archivo según su accionabilidad.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "segundo cerebro",
+        "productividad"
+      ]
+    }
+  },
+  {
+    "content": "La repetición espaciada programa repasos en intervalos crecientes y combate la curva del olvido de Ebbinghaus.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "aprendizaje",
+        "memoria"
+      ]
+    }
+  },
+  {
+    "content": "El cerebro humano tiene unos 86.000 millones de neuronas conectadas por billones de sinapsis.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "neurociencia"
+      ]
+    }
+  },
+  {
+    "content": "La plasticidad sináptica, resumida como 'neurons that fire together wire together', es la base biológica del aprendizaje.",
+    "metadata": {
+      "type": "concept",
+      "tags": [
+        "neurociencia",
+        "aprendizaje",
+        "memoria"
+      ],
+      "title": "Plasticidad sináptica"
+    }
+  },
+  {
+    "content": "El hipocampo consolida los recuerdos de corto plazo en memoria de largo plazo, sobre todo durante el sueño.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "neurociencia",
+        "memoria"
+      ]
+    }
+  },
+  {
+    "content": "Las neuronas se comunican mediante potenciales de acción eléctricos y neurotransmisores químicos en la sinapsis.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "neurociencia"
+      ]
+    }
+  },
+  {
+    "content": "Las redes neuronales artificiales se inspiraron en el perceptrón de Rosenblatt (1958), un modelo simplificado de neurona biológica.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "redes neuronales",
+        "neurociencia",
+        "historia"
+      ]
+    }
+  },
+  {
+    "content": "Three.js es una librería JavaScript que simplifica WebGL para crear escenas 3D en el navegador.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "visualizacion",
+        "web"
+      ]
+    }
+  },
+  {
+    "content": "El efecto bloom simula el brillo de luces intensas difuminando las zonas más luminosas de la imagen.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "visualizacion",
+        "cyberpunk"
+      ]
+    }
+  },
+  {
+    "content": "La estética cyberpunk combina neones cian y magenta, ciudades nocturnas y tecnología omnipresente, como en Neuromante de William Gibson.",
+    "metadata": {
+      "type": "concept",
+      "tags": [
+        "cyberpunk",
+        "ciencia ficcion"
+      ],
+      "title": "Cyberpunk"
+    }
+  },
+  {
+    "content": "En Neuromante (1984) Gibson popularizó el término 'ciberespacio' como una alucinación consensual de datos.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "cyberpunk",
+        "ciencia ficcion",
+        "historia"
+      ]
+    }
+  },
+  {
+    "content": "Chain-of-thought hace que un modelo razone paso a paso antes de responder, mejorando tareas de lógica y matemáticas.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "llm",
+        "razonamiento"
+      ]
+    }
+  },
+  {
+    "content": "La ventana de contexto limita cuántos tokens puede leer un LLM a la vez; RAG ayuda a meter solo lo relevante.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "llm",
+        "rag"
+      ]
+    }
+  },
+  {
+    "content": "FastAPI es un framework de Python para construir APIs rápidas con tipado, validación Pydantic y documentación automática.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "web",
+        "python"
+      ]
+    }
+  },
+  {
+    "content": "Server-Sent Events (SSE) permite al servidor enviar un flujo de eventos al navegador sobre una conexión HTTP abierta.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "web",
+        "streaming"
+      ]
+    }
+  },
+  {
+    "content": "Las alucinaciones de un LLM son respuestas plausibles pero falsas; citar fuentes recuperadas las hace verificables.",
+    "metadata": {
+      "type": "fact",
+      "tags": [
+        "llm",
+        "rag"
+      ]
+    }
+  }
+]

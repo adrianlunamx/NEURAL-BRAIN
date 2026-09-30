@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #1a1f3a 0%, #0a0e27 100%);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .panel {
+    @apply rounded-lg border border-neon-blue/30 bg-void-900/75 shadow-[0_0_30px_rgba(65,105,225,0.18)] backdrop-blur-md;
+  }
+  .btn {
+    @apply inline-flex items-center rounded-md border border-white/15 bg-void-900/70 px-3 py-1.5 font-display text-[11px] tracking-[0.2em] text-slate-300 backdrop-blur transition
+      hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-on {
+    @apply border-white/40 text-white;
+  }
+  .btn-cyan {
+    @apply border-neon-cyan/60 text-neon-cyan hover:bg-neon-cyan/10 hover:shadow-neon-cyan;
+  }
+  .btn-green {
+    @apply border-neon-green/60 text-neon-green hover:bg-neon-green/10 hover:shadow-neon-green;
+  }
+  .btn-magenta {
+    @apply border-neon-magenta/60 text-neon-magenta hover:bg-neon-magenta/10 hover:shadow-neon-magenta;
+  }
+  .btn-danger {
+    @apply border-red-500 bg-red-500/15 text-red-300 hover:bg-red-500/25;
+  }
+  .btn-ghost {
+    @apply rounded text-slate-500 transition hover:text-white;
+  }
+  .field {
+    @apply w-full rounded-md border border-neon-blue/40 bg-void-800/80 px-3 py-2 font-mono text-sm text-white placeholder:text-slate-500
+      focus:border-neon-cyan focus:outline-none focus:ring-1 focus:ring-neon-cyan/40;
+  }
+}
+
+/* CRT scanlines over the whole UI */
+.scanlines::after {
+  content: '';
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 3px);
+  mix-blend-mode: overlay;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(65, 105, 225, 0.4);
+  border-radius: 3px;
+}
