@@ -4,51 +4,14 @@ import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import glowSource from '../shaders/neuronGlow.glsl?raw'
 import { splitShader } from '../utils/shader'
-import { bump, easeOutCubic, hash01, idlePulse, now, popScale } from '../utils/animations'
-import { colorForType, TYPE_LABELS } from '../utils/colors'
+import { activeScale, bump, easeOutCubic, hash01, idlePulse, now, popScale } from '../utils/animations'
+import { COLORS, colorForType, TYPE_LABELS } from '../utils/colors'
 
 const GLOW = splitShader(glowSource)
 const WHITE = new THREE.Color('#ffffff')
+const YELLOW = new THREE.Color(COLORS.answer)
 const SPHERE = new THREE.SphereGeometry(1, 32, 32)
-
-/**
- * Dendrites + axon as line segments in neuron-local units (soma radius = 1).
- * Deterministic per id so a neuron always keeps the same silhouette.
- */
-function buildDendrites(id) {
-  let seed = Math.floor(hash01(id) * 1e6) + 1
-  const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646
-  const dir = () => new THREE.Vector3(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1).normalize()
-  const pts = []
-  const segment = (a, b) => pts.push(a.x, a.y, a.z, b.x, b.y, b.z)
-
-  const branch = (origin, d, length, depth) => {
-    const end = origin.clone().add(d.clone().multiplyScalar(length))
-    segment(origin, end)
-    if (depth === 0) return
-    for (let i = 0; i < 2; i++) {
-      const nd = d.clone().add(dir().multiplyScalar(0.7)).normalize()
-      branch(end, nd, length * (0.55 + rand() * 0.2), depth - 1)
-    }
-  }
-  const count = 4 + Math.floor(rand() * 3)
-  for (let i = 0; i < count; i++) {
-    const d = dir()
-    branch(d.clone().multiplyScalar(0.95), d, 0.9 + rand() * 0.6, 2)
-  }
-  // one long axon with a terminal fork
-  const axon = dir()
-  const tip = axon.clone().multiplyScalar(4 + rand() * 1.5)
-  const bend = axon.clone().multiplyScalar(2).add(dir().multiplyScalar(0.5))
-  segment(axon.clone().multiplyScalar(0.95), bend)
-  segment(bend, tip)
-  branch(tip, axon.clone().add(dir().multiplyScalar(0.8)).normalize(), 0.6, 1)
-  branch(tip, axon.clone().add(dir().multiplyScalar(0.8)).normalize(), 0.6, 1)
-
-  const g = new THREE.BufferGeometry()
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
-  return g
-}
+const MAX_SPARKS = 12
 
 export function createGlowMaterial(color, { power = 2.4, intensity = 0.4, rim = false } = {}) {
   return new THREE.ShaderMaterial({
@@ -67,23 +30,41 @@ export function createGlowMaterial(color, { power = 2.4, intensity = 0.4, rim = 
   })
 }
 
+/** 12 short radial "sparks" (neuron-local units, soma radius = 1). Idle shows 5-8 of them. */
+function buildSparks(id) {
+  let seed = Math.floor(hash01(id) * 1e6) + 1
+  const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646
+  const pts = []
+  for (let i = 0; i < MAX_SPARKS; i++) {
+    // golden-angle spiral with jitter: evenly spread, different per neuron
+    const y = 1 - (2 * (i + 0.5)) / MAX_SPARKS
+    const r = Math.sqrt(1 - y * y)
+    const theta = i * 2.39996 + rand() * 0.8
+    const d = new THREE.Vector3(Math.cos(theta) * r, y, Math.sin(theta) * r).normalize()
+    const len = 0.6 + rand() * 0.9
+    pts.push(d.x * 1.05, d.y * 1.05, d.z * 1.05, d.x * (1.05 + len), d.y * (1.05 + len), d.z * (1.05 + len))
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
+  return { geometry: g, idleCount: 5 + Math.floor(rand() * 4) }
+}
+
 /**
- * A single neuron: emissive core + fresnel halo.
- * All animation is computed per frame from timestamps in `activation`, so
- * React only re-renders when the thinking phase changes.
+ * A neuron: emissive soma + soft glow + sparks.
+ * Idle: breathes 1.0 ↔ 1.03 in its type colour. Search hit: turns white and grows ×1.2-1.5
+ * with a label and relevance %. Synthesis neuron: yellow, ×2. Inactive while thinking: 30 %.
+ * All animation runs in useFrame from timestamps, so React only re-renders on phase changes.
  */
-function Neuron({ data, activation, phase, phaseAt, hovered, selected, dimmed, onHover, onSelect }) {
+function Neuron({ data, activation, phase, phaseAt, isSynthesis, hovered, selected, dimmed, onHover, onSelect }) {
   const group = useRef()
   const core = useRef()
+  const sparksRef = useRef()
   const scaleRef = useRef(1)
   const seed = useMemo(() => hash01(data.id) * Math.PI * 2, [data.id])
-  const baseColor = useMemo(() => new THREE.Color(colorForType(data.type)), [data.type])
+  const baseColor = useMemo(() => new THREE.Color(data.color || colorForType(data.type)), [data.color, data.type])
   const glowMat = useMemo(() => createGlowMaterial(baseColor), [baseColor])
-  useEffect(() => () => glowMat.dispose(), [glowMat])
-  const bornAt = useRef(now())
-  const tmpColor = useMemo(() => new THREE.Color(), [])
-  const dendriteGeo = useMemo(() => buildDendrites(data.id), [data.id])
-  const dendriteMat = useMemo(
+  const sparks = useMemo(() => buildSparks(data.id), [data.id])
+  const sparkMat = useMemo(
     () =>
       new THREE.LineBasicMaterial({
         color: baseColor,
@@ -95,62 +76,64 @@ function Neuron({ data, activation, phase, phaseAt, hovered, selected, dimmed, o
       }),
     [baseColor],
   )
-  useEffect(
-    () => () => {
-      dendriteGeo.dispose()
-      dendriteMat.dispose()
-    },
-    [dendriteGeo, dendriteMat],
-  )
+  const bornAt = useRef(now())
+  const tmpColor = useMemo(() => new THREE.Color(), [])
+  const dimRef = useRef(1)
+
+  useEffect(() => () => glowMat.dispose(), [glowMat])
+  useEffect(() => () => sparkMat.dispose(), [sparkMat])
+  useEffect(() => () => sparks.geometry.dispose(), [sparks])
 
   useFrame((_, delta) => {
     const t = now()
-    // activation: 0 → 1 when the search wave / cascade reaches this neuron
     let a = 0
     let flash = 0
     let cascade = 0
-    let sync = 0
+    let synth = 0
     if (activation && t >= activation.at) {
       a = easeOutCubic((t - activation.at) / 0.35)
       flash = bump(t, activation.at + 0.08, 0.1)
       for (const c of activation.cascade || []) cascade += bump(t, c, 0.09)
-      const synthAt = phaseAt?.synthesize
-      if (synthAt && t >= synthAt && (phase === 'synthesize' || phase === 'answered')) {
-        // all active neurons beat in unison, fading into a calm glow once answered
-        const fade = phase === 'answered' ? Math.exp(-(t - (phaseAt.answered ?? t)) * 1.5) : 1
-        sync = (0.5 + 0.5 * Math.sin((t - synthAt) * Math.PI * 6)) * fade
-      }
     }
-    if (activation?.role === 'bridge') a *= 0.75
+    const synthAt = phaseAt?.synthesize
+    if (isSynthesis && synthAt && t >= synthAt) synth = easeOutCubic((t - synthAt) / 0.45)
 
-    const dim = dimmed && !activation ? 0.3 : 1
-    const birth = popScale(t - bornAt.current, 0.45)
+    dimRef.current = THREE.MathUtils.damp(dimRef.current, dimmed && !activation ? 0.3 : 1, 6, delta)
+    const dim = dimRef.current
+    const grow = THREE.MathUtils.lerp(1, activeScale(activation), a)
     const target =
       idlePulse(t, seed) *
-      (1 + 0.35 * a + 0.35 * flash + 0.3 * cascade + 0.18 * sync) *
+      THREE.MathUtils.lerp(grow, 2.0, synth) *
+      (1 + 0.25 * flash + 0.2 * cascade) *
       (hovered || selected ? 1.2 : 1) *
-      birth
+      popScale(t - bornAt.current, 0.45)
     scaleRef.current = THREE.MathUtils.damp(scaleRef.current, target, 14, delta)
     group.current.scale.setScalar(scaleRef.current * data.size)
 
+    // colour: type colour → bright white when active → yellow for the synthesis neuron
+    tmpColor.copy(baseColor).lerp(WHITE, Math.min(1, 0.85 * a + 0.5 * flash)).lerp(YELLOW, synth)
     const hover = hovered || selected ? 1 : 0
     const m = core.current.material
-    tmpColor.copy(baseColor).lerp(WHITE, Math.min(0.45, 0.15 * a + 0.4 * flash + 0.25 * cascade))
     m.color.copy(tmpColor)
     m.emissive.copy(tmpColor)
-    m.emissiveIntensity = (0.8 + 1.1 * a + 2.2 * flash + 1.4 * cascade + 0.9 * sync + 0.6 * hover) * dim
-    m.opacity = 0.35 + 0.65 * dim
+    m.emissiveIntensity = 0.4 + 1.1 * a + 1.5 * flash + cascade + 1.2 * synth + 0.5 * hover
+    m.opacity = dim
 
     const u = glowMat.uniforms
     u.uTime.value = t
     u.uColor.value.copy(tmpColor)
-    u.uIntensity.value = (0.5 + 0.7 * a + 1.2 * flash + 0.7 * cascade + 0.5 * sync + 0.5 * hover) * dim
+    u.uIntensity.value = (0.45 + 0.6 * a + flash + 0.6 * cascade + 0.9 * synth + 0.4 * hover) * dim
 
-    dendriteMat.color.copy(tmpColor)
-    dendriteMat.opacity = Math.min(1, (0.28 + 0.5 * a + 0.6 * cascade + 0.3 * sync + 0.3 * hover) * dim)
+    // sparks: 5-8 faint ones at idle; all 12, longer and flickering when active
+    const sp = sparksRef.current
+    const lit = Math.max(a, synth)
+    sp.geometry.setDrawRange(0, (lit > 0.05 ? MAX_SPARKS : sparks.idleCount) * 2)
+    const flicker = lit > 0 ? 1 + 0.18 * Math.sin(t * 31 + seed * 7) + 0.3 * cascade : 1
+    sp.scale.setScalar((1 + 0.8 * lit) * flicker)
+    sparkMat.color.copy(tmpColor)
+    sparkMat.opacity = (0.3 + 0.5 * lit + 0.4 * cascade) * dim
   })
 
-  // Smart label: only while hovered or when this neuron is a search hit.
   const showLabel = hovered || activation?.role === 'hit'
   const color = colorForType(data.type)
 
@@ -175,29 +158,32 @@ function Neuron({ data, activation, phase, phaseAt, hovered, selected, dimmed, o
         <meshStandardMaterial
           color={baseColor}
           emissive={baseColor}
-          emissiveIntensity={0.9}
-          metalness={0.35}
-          roughness={0.25}
+          emissiveIntensity={0.4}
+          metalness={0.3}
+          roughness={0.4}
           transparent
           toneMapped={false}
         />
       </mesh>
-      <mesh geometry={SPHERE} material={glowMat} scale={1.9} raycast={() => null} />
-      <lineSegments geometry={dendriteGeo} material={dendriteMat} raycast={() => null} />
+      <mesh geometry={SPHERE} material={glowMat} scale={1.4} raycast={() => null} />
+      <lineSegments ref={sparksRef} geometry={sparks.geometry} material={sparkMat} raycast={() => null} />
       {showLabel && (
-        <Html position={[0, !hovered && activation?.rank % 2 === 1 ? -2.6 : 2.4, 0]} center zIndexRange={[40, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-          <div className="label-neuron animate-fade-up" style={{ '--c': color }}>
-            <div className="label-text">
-              {data.label.length > 34 ? data.label.slice(0, 33) + '…' : data.label}
-            </div>
-            <div className="label-meta">
-              {activation?.percentage != null ? (
-                <span className="label-percentage">{activation.percentage}%</span>
-              ) : (
+        <Html
+          position={[0, !hovered && activation?.rank % 2 === 1 ? -2.2 : 2, 0]}
+          center
+          zIndexRange={[40, 0]}
+          style={{ pointerEvents: 'none', userSelect: 'none' }}
+        >
+          <div className="neuron-label animate-fade-up">
+            <div className="label-text">{data.label}</div>
+            {activation?.percentage != null ? (
+              <div className="label-percentage">{activation.percentage}%</div>
+            ) : (
+              <div className="label-meta">
                 <span style={{ color }}>{TYPE_LABELS[data.type]}</span>
-              )}
-              {hovered && <span className="label-hint">{data.degree} sinapsis · click</span>}
-            </div>
+                <span className="label-hint">{data.degree} sinapsis · click</span>
+              </div>
+            )}
           </div>
         </Html>
       )}

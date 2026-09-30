@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../utils/api'
 import { edgeKey, toVec3 } from '../utils/animations'
 
-const EMPTY = { nodes: [], edges: [], stats: { nodes: 0, edges: 0, concepts: 0, facts: 0 }, layout: 'brain', brain: null }
+const EMPTY = { nodes: [], edges: [], stats: { nodes: 0, edges: 0, concepts: 0, facts: 0 }, layout: 'oval', brain: null }
 
 /** Fetches GET /api/graph and derives lookup tables used by the scene. */
 export function useGraphData() {

@@ -32,7 +32,24 @@ Si al arrancar no coinciden (p. ej. un crash a mitad de ingesta) se reinician en
 
 Todo ocurre bajo un `asyncio.Lock` y en un hilo (`asyncio.to_thread`) para no bloquear el event loop.
 
-## Layout anatómico (`utils/brain_shape.py`, modo `brain`, por defecto)
+## Layout óvalo (`utils/graph_layout.py`, modo `oval`, por defecto)
+
+Cerebro aplanado visto desde arriba, denso en el centro y disperso en los bordes:
+
+1. `spring_layout` 3D (200 iteraciones, `k = 2/√n`) con un **hub de gravedad** invisible unido con peso
+   0.08 a todas las neuronas: los grupos separados se juntan en una nube redonda en vez de estirarse en
+   una cadena.
+2. Ejes principales (SVD): mayor dispersión → X, menor → Z.
+3. **Remapeo radial por rango**: cada neurona conserva su dirección y su radio pasa a `rango^0.6`
+   (0 = centro, 1 = borde), así el centro queda más denso que la periferia.
+4. Se aplasta en un óvalo `1.25 : 1 : 0.4` a escala `12·max(1, √(n/55))` y una pasada final separa
+   cualquier par de neuronas a menos de 1.2 unidades.
+
+Cada arista lleva `distance` y `near` (< 8 unidades a escala 12): la vista idle sólo dibuja las
+sinapsis cercanas. `LAYOUT_VERSION` en `graph_store.py` fuerza a recalcular posiciones guardadas cuando
+cambia un algoritmo.
+
+## Layout anatómico (`utils/brain_shape.py`, `LAYOUT_MODE=brain`)
 
 La superficie del cerebro es una función analítica `cortex_radius(dirección)`: un elipsoide con la parte
 frontal más estrecha, la base aplanada, lóbulos temporales abultados, la cisura longitudinal entre
@@ -101,6 +118,7 @@ Cada fase se programa en `max(ahora, inicio_fase_anterior + duración_mínima)`:
 | `connect` | `connect` | search + 0.5 s |
 | primer `token` | `synthesize` | connect + 0.7 s |
 | `synthesize` | `answered` | synthesize + 0.5 s |
+| — | `idle` | answered + 2 s (el panel de respuesta sigue abierto) |
 
 El estado resultante (`activeNodes`, `activeEdges`, `query`, `answer`, `phaseAt`) guarda **marcas de
 tiempo**, no progresos: cada componente calcula su animación en `useFrame` a partir de `performance.now()`.
@@ -111,17 +129,16 @@ que la neurona-respuesta emerge, para que el texto aparezca con ella.
 
 | Componente | Técnica |
 |---|---|
-| `Neuron` | esfera emisiva (`toneMapped=false` → alimenta el bloom) + halo con `neuronGlow.glsl` |
-| `Connection` | curva Bézier cuadrática combada hacia fuera; `connectionPulse.glsl` hace el shimmer y la corriente (atributo `aT` 0→1 a lo largo de la curva); en activo, una `QuadraticBezierLine` discontinua cuyo `dashOffset` fluye |
+| `Neuron` | esfera emisiva (`toneMapped=false` → alimenta el bloom) + halo con `neuronGlow.glsl` + 12 **chispas** radiales (5–8 visibles en idle, todas, más largas y parpadeando cuando está activa). Activa → blanca ×1.2–1.5; neurona de síntesis (el mejor resultado) → amarilla ×2; inactiva mientras piensa → 30 %. Etiqueta sólo en hover o si es un resultado |
+| `Connection` | idle: línea finísima `#4169e1` al 15 % (sólo las `near`), con shimmer de `connectionPulse.glsl`; pensando: las inactivas bajan al 5 %; activa: **tubo** blanco r = 0.08 con la corriente eléctrica del mismo shader (atributo `aT` = coordenada `u` del tubo) |
 | `ThinkingParticles` | pool de 4000 puntos en un único `BufferGeometry`, alimentado por `particleBus` (burst / travel por curva) |
-| `AmbientParticles` | polvo con deriva calculada en el vertex shader |
-| `ThinkingFX` | neurona-consulta, ondas (fresnel en modo *rim*), plano de escaneo, rayos, neurona-respuesta |
-| `CameraRig` | `OrbitControls` (zoom 10–100, pan, damping) + vuelos con easing (`focusOn`, `frame`, `home`) |
-| `useAutoZoom` | al empezar SEARCH encuadra las neuronas activas + la consulta; al cerrar la respuesta vuelve a HOME |
-| `PulseRings` | tres anillos escalonados que se expanden desde cada neurona activa, siempre de cara a la cámara |
-| `BrainShell` | nube de puntos de la silueta con parpadeo y una banda de escaneo; se ilumina al pensar |
-| `Neuron` (dendritas) | soma + 4–6 dendritas ramificadas + un axón largo, generadas de forma determinista por id; etiqueta sólo en hover o si es un resultado |
+| `AmbientParticles` | 500 motas con deriva en el vertex shader; sólo en idle |
+| `ThinkingFX` | neurona-consulta (r = 0.8), haces que crecen de la consulta a los resultados (tubos r = 0.05) y de las activas a la neurona de síntesis |
+| `ThinkingCloud` | "humo" azul/cian: 220 sprites aditivos muy suaves alrededor del cluster activo que giran despacio; aparece en SEARCH y alcanza su máximo en SYNTHESIZE |
+| `CameraRig` | `OrbitControls` (zoom 15–80, pan, damping, auto-rotate 0.3) + vuelos con easing (`focusOn`, `frame`, `home`) |
+| `useAutoZoom` | al empezar SEARCH vuela a `centro del cluster + (0, 5, 20)` (más lejos si no cabe); al volver a idle regresa a HOME |
+| `BrainShell` | sólo en `LAYOUT_MODE=brain`: nube de puntos de la silueta con parpadeo y una banda de escaneo |
 | `ShaderWarmup` | compila por adelantado los materiales de las animaciones para evitar tirones al primer uso |
 
-Post-procesado: `Bloom` (mipmap blur) → `ChromaticAberration` (pico en cada cambio de fase) → `Vignette`,
-con `DepthOfField` opcional que sigue el objetivo de la cámara.
+Post-procesado: `Bloom` (intensidad 1.2 en idle, 2.0 mientras piensa), con `DepthOfField` opcional que
+sigue el objetivo de la cámara.

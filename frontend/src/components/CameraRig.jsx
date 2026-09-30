@@ -5,15 +5,17 @@ import * as THREE from 'three'
 import { IDLE_ROTATE_SPEED, easeInOutCubic, now } from '../utils/animations'
 
 const FLY_TIME = 1.1
-export const MIN_DISTANCE = 10
-export const MAX_DISTANCE = 100
+export const MIN_DISTANCE = 15
+export const MAX_DISTANCE = 80
+const CLUSTER_OFFSET = new THREE.Vector3(0, 5, 20)
 
 const clampDistance = (d) => THREE.MathUtils.clamp(d, MIN_DISTANCE + 1, MAX_DISTANCE - 2)
 
 /**
- * OrbitControls (rotate · zoom 10-100 · pan) + smooth camera flights.
+ * OrbitControls (rotate · zoom 15-80 · pan) + smooth camera flights.
  * - focusOn(vec, distance): fly towards one neuron
- * - frame(points): fit a cluster of neurons in view (auto-zoom)
+ * - frame(points): auto-zoom — look at the cluster from (0, 5, 20) above/in front of its centre,
+ *   backing off further if the cluster is too big to fit
  * - home(): back to the overview
  */
 const CameraRig = forwardRef(function CameraRig({ autoRotate, homeDistance }, ref) {
@@ -41,12 +43,14 @@ const CameraRig = forwardRef(function CameraRig({ autoRotate, homeDistance }, re
       const center = points.reduce((acc, p) => acc.add(p), new THREE.Vector3()).divideScalar(points.length)
       const radius = Math.max(4, ...points.map((p) => p.distanceTo(center)))
       const fov = THREE.MathUtils.degToRad(camera.fov)
-      const distance = clampDistance((radius * padding) / Math.sin(fov / 2))
-      flyTo(center, center.clone().add(viewDir().multiplyScalar(distance)))
+      const fit = (radius * padding) / Math.sin(fov / 2)
+      const offset = CLUSTER_OFFSET.clone().multiplyScalar(Math.max(1, fit / CLUSTER_OFFSET.length()))
+      offset.setLength(clampDistance(offset.length()))
+      flyTo(center, center.clone().add(offset))
     },
     home() {
       const d = clampDistance(homeDistance)
-      flyTo(new THREE.Vector3(0, 0, 0), new THREE.Vector3(d * 0.25, d * 0.18, d))
+      flyTo(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, d))
     },
     get target() {
       return controls.current?.target
@@ -82,7 +86,7 @@ const CameraRig = forwardRef(function CameraRig({ autoRotate, homeDistance }, re
       panSpeed={0.5}
       screenSpacePanning
       rotateSpeed={0.5}
-      zoomSpeed={1.2}
+      zoomSpeed={1.0}
       autoRotate={autoRotate}
       autoRotateSpeed={IDLE_ROTATE_SPEED}
     />

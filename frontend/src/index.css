@@ -174,29 +174,38 @@ body,
 }
 
 /* ── neuron labels (hover / active only) ───────────────────── */
-.label-neuron {
-  --c: #00f5ff;
+.neuron-label {
   background: rgba(10, 14, 39, 0.95);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid color-mix(in srgb, var(--c) 35%, transparent);
-  border-radius: 8px;
-  padding: 8px 12px;
+  border: 1px solid rgba(0, 245, 255, 0.4);
+  border-radius: 6px;
+  padding: 8px 14px;
   font-family: 'JetBrains Mono', 'Courier New', monospace;
-  color: var(--c);
+  min-width: 120px;
+  box-shadow: 0 0 20px rgba(0, 245, 255, 0.3);
+}
+.label-text {
+  color: #00f5ff;
   font-size: 11px;
+  margin-bottom: 4px;
   white-space: nowrap;
-  box-shadow: 0 0 20px color-mix(in srgb, var(--c) 40%, transparent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+.label-percentage {
+  color: #39ff14;
+  font-size: 13px;
+  font-weight: bold;
+  text-align: right;
 }
 .label-meta {
   display: flex;
   gap: 10px;
   align-items: baseline;
-  margin-top: 4px;
-}
-.label-percentage {
-  color: #39ff14;
-  font-weight: bold;
+  font-size: 11px;
+  white-space: nowrap;
 }
 .label-hint {
   color: #5b6388;

@@ -8,7 +8,7 @@ function Toggle({ on, onClick, children, title }) {
 }
 
 /** Bottom-right view panel: visual toggles + camera home. */
-export default function Controls({ options, setOption, onHome }) {
+export default function Controls({ options, setOption, onHome, hasShell }) {
   return (
     <div className="pointer-events-auto absolute bottom-6 right-4 z-20 hidden w-36 flex-col gap-1.5 md:flex">
       <Toggle on={options.animate} onClick={() => setOption('animate', !options.animate)} title="Animar el proceso de pensamiento">
@@ -20,9 +20,11 @@ export default function Controls({ options, setOption, onHome }) {
       <Toggle on={options.labels} onClick={() => setOption('labels', !options.labels)} title="Etiquetas de todos los conceptos">
         LABELS
       </Toggle>
-      <Toggle on={options.shell} onClick={() => setOption('shell', !options.shell)} title="Silueta holográfica del cerebro">
-        SILUETA
-      </Toggle>
+      {hasShell && (
+        <Toggle on={options.shell} onClick={() => setOption('shell', !options.shell)} title="Silueta holográfica del cerebro">
+          SILUETA
+        </Toggle>
+      )}
       <Toggle on={options.dof} onClick={() => setOption('dof', !options.dof)} title="Profundidad de campo (más GPU)">
         DOF
       </Toggle>

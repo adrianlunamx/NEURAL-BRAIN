@@ -8,6 +8,7 @@ from utils.brain_shape import REGION_BY_NAME, BrainShapeLayout, cortex_radius, l
 
 
 def seeded(brain):
+    brain.graph.layout_mode = "brain"
     asyncio.run(brain.seed())
     return brain.graph
 
@@ -66,7 +67,8 @@ def test_layout_is_deterministic_and_incremental():
     assert np.median(moved) < 1.5  # adding a note nudges the brain, it doesn't reshuffle it
 
 
-def test_graph_payload_describes_the_brain(client):
+def test_graph_payload_describes_the_brain(client, brain):
+    brain.graph.layout_mode = "brain"
     client.post("/api/seed")
     g = client.get("/api/graph").json()
     assert g["layout"] == "brain"

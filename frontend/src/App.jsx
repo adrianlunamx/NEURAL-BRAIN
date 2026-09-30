@@ -42,6 +42,7 @@ export default function App() {
   const { scene, response, thinking, ask, clear, cancel } = useThinking({
     nodeMap: graph.nodeMap,
     edgeMap: graph.edgeMap,
+    layout: graph.layout,
     radius: graph.radius,
     onGraphStale: graph.refresh,
   })
@@ -129,7 +130,7 @@ export default function App() {
           onSeed={() => seed().catch(() => {})}
           onReset={handleReset}
         />
-        <Controls options={options} setOption={setOption} onHome={home} />
+        <Controls options={options} setOption={setOption} onHome={home} hasShell={!!graph.brain} />
         {empty && <EmptyState onSeed={() => seed().catch(() => {})} onIngest={() => setIngestOpen(true)} busy={busy} />}
         {graph.error && (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 panel p-5 text-center font-mono text-sm text-slate-400">
