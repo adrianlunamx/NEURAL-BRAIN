@@ -30,7 +30,7 @@ Respuesta `text/event-stream`. Cada evento lleva `event: <type>` y `data: <json>
 
 | type | data |
 |---|---|
-| `search` | `{ question, nodes: [{ id, score, rank, label, type, content }] }` |
+| `search` | `{ question, nodes: [{ id, score, percentage, rank, label, type, content }], percentages: { id: % } }` — `percentage` es relativo a la mejor coincidencia (= 100) |
 | `connect` | `{ paths: [[id, …]], edges: [{ from, to, weight }], bridges: [id] }` |
 | `token` | `{ text }` — fragmento de la respuesta (N veces) |
 | `synthesize` | `{ answer, sources: [{ id, label, type, score, content }], model, offline, stop_reason }` |
@@ -42,9 +42,12 @@ Respuesta `text/event-stream`. Cada evento lleva `event: <type>` y `data: <json>
 ## `GET /graph`
 
 ```json
-{ "nodes": [{ "id", "label", "type", "content", "tags", "position": { "x", "y", "z" }, "size", "degree", "created_at" }],
-  "edges": [{ "from", "to", "weight", "kind": "semantic | tag" }],
-  "stats": { "nodes", "edges", "concepts", "facts" } }
+{ "nodes": [{ "id", "label", "type", "color", "region", "lobe", "content", "tags",
+               "position": { "x", "y", "z" }, "size", "degree", "created_at" }],
+  "edges": [{ "from", "to", "weight", "kind": "semantic | tag", "range": "local | long" }],
+  "stats": { "nodes", "edges", "concepts", "facts" },
+  "layout": "brain | force",
+  "brain": { "scale", "shell": [[x, y, z], …] } }   // null con LAYOUT_MODE=force
 ```
 
 ## `GET /node/{id}`

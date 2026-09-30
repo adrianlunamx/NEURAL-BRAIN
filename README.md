@@ -19,6 +19,9 @@
 | 🧠 **Ingesta** | Cada nota se convierte en una **neurona**. Se enlaza por similitud semántica con las que ya existen, y cada *tag* crea (o refuerza) una **neurona-concepto** hub. |
 | 🔎 **RAG** | Una pregunta se embebe, se buscan los recuerdos más cercanos en ChromaDB y el grafo encuentra los **caminos** que los unen. Claude sintetiza la respuesta citando las fuentes `[n]`. |
 | ✨ **Visualización** | El proceso se emite por **SSE** fase a fase y el frontend lo anima: la consulta aparece, una onda escanea el cerebro, la corriente eléctrica recorre las sinapsis y la respuesta emerge en el centro. |
+| 🧬 **Forma de cerebro** | Las neuronas viven dentro de un cerebro humano: dos hemisferios, lóbulos frontal, parietal, temporal y occipital, cerebelo e hipocampo. Cada **área de conocimiento** (comunidad del grafo) ocupa una región, los conceptos están en la corteza y los hechos más adentro. |
+
+![cerebro en reposo](docs/brain-idle.png)
 
 ## Quick start
 
@@ -75,9 +78,13 @@ cd frontend && npm install && npm run dev
 
 Cada fase empieza en *su* instante o cuando llegan los datos reales, lo que ocurra después: la animación nunca va por delante del razonamiento. Si Claude tarda, la fase CONNECT sigue viva hasta el primer token.
 
-**Idle:** las neuronas respiran (`scale 1.0 ↔ 1.05`, ciclo 2 s), el grafo rota a 0.1 rpm, las sinapsis tienen *shimmer* y flota polvo neuronal entre 5000 estrellas.
+**Idle:** las neuronas (soma + dendritas + axón) respiran (`scale 1.0 ↔ 1.05`, ciclo 2 s), el cerebro rota lentamente, una silueta holográfica con un barrido de escaneo dibuja corteza, cerebelo y tronco encefálico, y flota polvo neuronal entre 5000 estrellas. Las fibras largas entre lóbulos o hemisferios (tipo cuerpo calloso) se arquean más y son violetas.
 
-**Interacción:** hover → glow + `scale 1.2` + tooltip · click → vuelo suave de cámara + panel de info · arrastrar → rotar · scroll → zoom · doble click en el vacío → vista general · `/` enfoca el input · `Esc` cancela · `↑` recupera la última pregunta · las citas `[n]` de la respuesta son clicables.
+**Durante la respuesta:** la cámara hace **auto-zoom** al cluster activo, cada neurona encontrada emite **anillos de pulso** y muestra una etiqueta con su **% de relevancia** respecto a la mejor coincidencia (la mejor = 100 %).
+
+**Interacción:** hover → glow + `scale 1.2` + etiqueta · click → vuelo suave de cámara + panel de info · arrastrar → rotar · botón derecho / dos dedos → **pan** · scroll → zoom (10–100) · doble click en el vacío → vista general · `/` o la pestaña `INPUT` enfocan el input · `Esc` cancela · `↑` recupera la última pregunta · las citas `[n]` de la respuesta son clicables.
+
+**Panel de vista** (abajo a la derecha): `ANIM`, `AUTO-ZOOM`, `LABELS` (etiquetas de todos los conceptos), `SILUETA`, `DOF`, `HOME`. Las preferencias se recuerdan en el navegador.
 
 **Post-procesado:** Bloom (mipmap), viñeta, aberración cromática que da un "latigazo" en cada cambio de fase (hace de *motion blur* barato) y **Depth of Field** opcional (toggle `DOF`, sigue el punto que orbita la cámara).
 
@@ -139,6 +146,8 @@ curl -X DELETE localhost:8000/api/reset  # borrar todo
 | `TOP_K` | `5` | Recuerdos recuperados por pregunta. |
 | `LINK_THRESHOLD` | `0.35` | Similitud mínima para crear una sinapsis al ingestar. |
 | `MAX_LINKS_PER_NODE` | `4` | Sinapsis semánticas máximas por neurona nueva. |
+| `LAYOUT_MODE` | `brain` | `brain` = forma anatómica de cerebro · `force` = force-directed 3D con clusters por tipo. |
+| `LAYOUT_ITERATIONS` | `200` | Iteraciones del layout `force`. |
 | `STORAGE_DIR` | `./storage` | Dónde se persisten ChromaDB y el grafo. |
 | `CORS_ORIGINS` | `http://localhost:5173,…` | Orígenes permitidos. |
 
@@ -156,14 +165,14 @@ neural-brain/
 │   ├── db/    vector_store.py · graph_store.py
 │   ├── models/schemas.py      Pydantic
 │   ├── api/routes.py          endpoints
-│   ├── utils/ logger.py · graph_layout.py
+│   ├── utils/ logger.py · graph_layout.py · brain_shape.py
 │   ├── data/seed.json         30 recuerdos de ejemplo
 │   └── tests/                 pytest (offline)
 ├── frontend/
 │   └── src/
-│       ├── components/        BrainCanvas · Neuron · Connection · Particles · ThinkingFX
-│       │                      CameraRig · QueryInput · ResponsePanel · NeuronInfo · Controls …
-│       ├── hooks/             useBrain · useThinking · useGraphData
+│       ├── components/        BrainCanvas · Neuron · Connection · Particles · ThinkingFX · PulseRings
+│       │                      BrainShell · CameraRig · Header · QueryInput · ResponsePanel · NeuronInfo · Controls …
+│       ├── hooks/             useBrain · useThinking · useGraphData · useAutoZoom
 │       ├── utils/             api (axios + SSE) · animations · colors · particleBus
 │       └── shaders/           neuronGlow.glsl · connectionPulse.glsl
 ├── scripts/                   setup / run (.sh y .ps1)
