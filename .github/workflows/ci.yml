@@ -6,7 +6,11 @@ on:
 
 jobs:
   backend:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     defaults:
       run:
         working-directory: backend
@@ -16,11 +20,27 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      # Tests run with the offline hashing embedder, so skip the heavy PyTorch stack.
-      - run: grep -v sentence-transformers requirements.txt > requirements-ci.txt && pip install -r requirements-ci.txt
+      - run: pip install -r requirements.txt
+      # Tests run with the offline hashing embedder: no model download.
       - run: python -m pytest -q
         env:
           EMBEDDING_BACKEND: hash
+
+  # Windows PowerShell 5.1 reads BOM-less scripts as ANSI: a stray non-ASCII
+  # character breaks parsing, so parse every script with the real 5.1 parser.
+  windows-scripts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: powershell
+        run: |
+          $bad = 0
+          foreach ($f in Get-ChildItem scripts -Filter *.ps1) {
+            $errs = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errs) | Out-Null
+            if ($errs) { $bad++; Write-Host "FAIL $($f.Name): $($errs[0].Message)" } else { Write-Host "ok   $($f.Name)" }
+          }
+          exit $bad
 
   frontend:
     runs-on: ubuntu-latest
