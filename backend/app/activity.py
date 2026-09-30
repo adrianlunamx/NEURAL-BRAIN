@@ -94,6 +94,7 @@ class ActivityStore:
         self.edits: Deque[dict] = deque(maxlen=2000)
         self.rate: Dict[int, int] = {}
         self.totals: Dict[str, int] = {}
+        self.note_usage: Dict[str, int] = {}   # note id -> times an action touched it
 
     # ------------------------------------------------------------------
     def _session(self, session_id: str, cwd: str, now: float) -> Session:
@@ -164,6 +165,7 @@ class ActivityStore:
             agent.last_action, agent.last_target, agent.last_at = action, target[:160], now
             if note_id:
                 agent.last_note = note_id
+                self.note_usage[note_id] = self.note_usage.get(note_id, 0) + 1
 
             if lines_added or lines_removed:
                 self.edits.append({"ts": now, "path": target, "project": s.project,
@@ -230,6 +232,7 @@ class ActivityStore:
                 "files": sorted(files.values(), key=lambda f: -f["last_at"])[:12],
                 "rate": rate,
                 "totals": dict(sorted(self.totals.items(), key=lambda kv: -kv[1])),
+                "note_usage": dict(self.note_usage),
             }
 
 

@@ -145,3 +145,4 @@ def test_notes_and_activity_api(client):
     act = client.get("/activity").json()
     assert act["sessions"][0]["project"] == "repo" and act["sessions"][0]["status"] == "en reposo"
     assert act["events"][1]["action"] == "lee" and act["events"][1]["note_id"] == titles["CLAUDE.md"]["id"]
+    assert act["note_usage"] == {titles["CLAUDE.md"]["id"]: 1}
