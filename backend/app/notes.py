@@ -88,10 +88,11 @@ def group_anchor(group: str, region: Region) -> Tuple[float, float, float]:
     key = (group, region.value)
     if key not in _anchor_cache:
         rng = np.random.default_rng(_stable_index(group, 2 ** 31))
-        pts = sample_region(region.value, 24, rng)
+        pts = sample_region(region.value, 32, rng)
         centre = pts.mean(axis=0)
-        # the sample closest to the region centre, nudged by the group hash
-        p = pts[int(np.argmin(np.linalg.norm(pts - centre, axis=1)))]
+        # a point halfway between a hash-chosen sample and the region centre:
+        # groups sharing a region spread out but stay well inside it
+        p = (pts[_stable_index(group + "#", len(pts))] + centre) / 2
         _anchor_cache[key] = (float(p[0]), float(p[1]), float(p[2]))
     return _anchor_cache[key]
 
