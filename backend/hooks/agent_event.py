@@ -24,7 +24,7 @@ import os
 import sys
 import urllib.request
 
-BACKEND_URL = os.environ.get("NEURAL_BRAIN_URL", "http://localhost:8000")
+BACKEND_URL = os.environ.get("NEURAL_BRAIN_URL", "http://127.0.0.1:8000")
 
 ACTION_TOOL = {  # action -> (hook_type, tool_name) as Claude Code would send it
     "lee": ("file_read", "Read"), "busca": ("file_search", "Grep"), "edita": ("file_edit", "Edit"),

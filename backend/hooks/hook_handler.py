@@ -13,11 +13,25 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import sys
+import urllib.parse
 import urllib.request
 
-BACKEND_URL = os.environ.get("NEURAL_BRAIN_URL", "http://localhost:8000")
+BACKEND_URL = os.environ.get("NEURAL_BRAIN_URL", "http://127.0.0.1:8000")
 TIMEOUT_SECONDS = 2.0
+PROBE_SECONDS = 0.25
+
+
+def backend_up() -> bool:
+    """Fast TCP probe: on Windows a refused connect is retried for ~2 s, which
+    would slow every tool call while the brain is off."""
+    url = urllib.parse.urlsplit(BACKEND_URL)
+    try:
+        socket.create_connection((url.hostname, url.port or 80), timeout=PROBE_SECONDS).close()
+        return True
+    except OSError:
+        return False
 
 AGENT_TOOLS = {"Task", "Agent"}
 
@@ -118,7 +132,7 @@ def main() -> int:
         body = build_event(json.loads(raw))
     except Exception:
         return 0  # never break the user's Claude Code session
-    if body is None:
+    if body is None or not backend_up():
         return 0
     try:
         req = urllib.request.Request(

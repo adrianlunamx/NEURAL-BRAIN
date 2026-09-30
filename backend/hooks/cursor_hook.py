@@ -25,7 +25,7 @@ import os
 import sys
 import urllib.request
 
-BACKEND_URL = os.environ.get("NEURAL_BRAIN_URL", "http://localhost:8000")
+BACKEND_URL = os.environ.get("NEURAL_BRAIN_URL", "http://127.0.0.1:8000")
 TIMEOUT_SECONDS = 2.0
 
 # what each "before*" hook must print so Cursor carries on
