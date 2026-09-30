@@ -14,6 +14,8 @@ import { NotesAnimator, FireflyNotes } from "./FireflyNotes";
 import { LinksLayer } from "./LinksLayer";
 import { AgentMarkers, markerPositions } from "./AgentMarkers";
 import { PillDecollider } from "./pillLayout";
+import { CameraProbe } from "./CameraReadout";
+import { SpikeTrails } from "./SpikeTrails";
 import { livePositions, useNotesStore } from "../store/notesStore";
 import { ArousalDriver } from "../store/arousal";
 import { BRAIN_CENTER } from "../config/brainConfig";
@@ -111,16 +113,16 @@ const skyFragment = /* glsl */ `
   varying vec3 vDir;
   void main() {
     float h = vDir.y * 0.5 + 0.5;
-    vec3 top = vec3(0.004, 0.006, 0.028);
-    vec3 mid = vec3(0.016, 0.009, 0.045);
-    vec3 low = vec3(0.002, 0.002, 0.012);
+    vec3 top = vec3(0.010, 0.012, 0.012);
+    vec3 mid = vec3(0.024, 0.027, 0.027);
+    vec3 low = vec3(0.004, 0.005, 0.005);
     vec3 c = mix(low, mid, smoothstep(0.0, 0.5, h));
     c = mix(c, top, smoothstep(0.5, 1.0, h));
     gl_FragColor = vec4(c, 1.0);
   }
 `;
 
-/** Deep blue-violet gradient behind the stars. */
+/** Neutral graphite gradient behind the stars (matches the instrument UI). */
 function Sky() {
   const material = useMemo(() => new THREE.ShaderMaterial({
     vertexShader: skyVertex, fragmentShader: skyFragment, side: THREE.BackSide, depthWrite: false,
@@ -146,12 +148,13 @@ export function BrainCanvas() {
       onPointerMissed={() => useNotesStore.getState().select(null)}
       dpr={[1, 2]}
     >
-      <color attach="background" args={["#060817"]} />
+      <color attach="background" args={["#07090a"]} />
       <Sky />
-      <Stars radius={70} depth={45} count={3500} factor={2.6} saturation={0.5} fade speed={0.4} />
+      <Stars radius={70} depth={45} count={3500} factor={2.6} saturation={0} fade speed={0.4} />
       <ambientLight intensity={0.7} />
       <Suspense fallback={null}>
         <NeuronDust />
+        <SpikeTrails />
         <Fibers />
         <BrainShell />
         <ArousalDriver />
@@ -160,6 +163,7 @@ export function BrainCanvas() {
         <FireflyNotes />
         <AgentMarkers />
         <PillDecollider />
+        <CameraProbe />
       </Suspense>
       {/* text (fonts) loads in its own boundary: it can never blank the neurons */}
       <SceneErrorBoundary>

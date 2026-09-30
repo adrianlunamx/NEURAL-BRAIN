@@ -3,13 +3,13 @@ import { API_URL } from "../../config";
 import { useBrainStore } from "../../store/brainStore";
 import { useNotesStore } from "../../store/notesStore";
 import { LinkType, NoteType } from "../../types";
-import { LINK_LABELS, LinkSample, TYPE_LABELS, TypeIcon } from "./common";
+import { LINK_LABELS, LinkSample, pad, TYPE_LABELS, TypeIcon } from "./common";
 
-function SectionHead({ title, kind }: { title: string; kind: "group" | "type" | "link" }) {
+function SectionHead({ idx, title, kind }: { idx: string; title: string; kind: "group" | "type" | "link" }) {
   const setAll = useNotesStore((s) => s.setAll);
   return (
     <div className="sec-head">
-      <span>{title}</span>
+      <span className="cap"><span className="idx">{idx}</span>{title}</span>
       <span className="sec-actions">
         <button onClick={() => setAll(kind, true)}>todos</button>
         <button onClick={() => setAll(kind, false)}>ninguno</button>
@@ -65,7 +65,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="search">
-        <span className="search-ico">⌕</span>
+        <span className="search-ico">&gt;</span>
         <input
           ref={inputRef}
           value={search}
@@ -74,39 +74,39 @@ export function Sidebar() {
             if (e.key === "Enter") void ask();
             if (e.key === "Escape") { setSearch(""); inputRef.current?.blur(); }
           }}
-          placeholder={phase === "IDLE" ? "Buscá una nota…" : `pensando (${phase})…`}
+          placeholder={phase === "IDLE" ? "buscar o preguntar…" : `pensando (${phase})…`}
           title="Escribe para filtrar; Enter pregunta al cerebro"
         />
         <kbd>/</kbd>
       </div>
 
-      <SectionHead title="GRUPOS" kind="group" />
+      <SectionHead idx="01" title="Grupos" kind="group" />
       {view?.groups.map((g) => (
         <label key={g.name} className="row">
           <input type="checkbox" checked={!hiddenGroups.has(g.name)} onChange={() => toggle("group", g.name)} />
-          <span className="dot" style={{ background: g.color, boxShadow: `0 0 6px ${g.color}` }} />
+          <span className="dot" style={{ background: g.color }} />
           <span className="name" title={g.name}>{g.name}</span>
-          <span className="count">{g.count}</span>
+          <span className="count">{pad(g.count, 3)}</span>
         </label>
       ))}
 
-      <SectionHead title="TIPOS DE NOTA" kind="type" />
+      <SectionHead idx="02" title="Tipos de nota" kind="type" />
       {types.map((t) => (
         <label key={t} className="row">
           <input type="checkbox" checked={!hiddenTypes.has(t)} onChange={() => toggle("type", t)} />
-          <span className="ico"><TypeIcon type={t} color="#b8c3dd" /></span>
+          <span className="ico"><TypeIcon type={t} /></span>
           <span className="name">{TYPE_LABELS[t]}</span>
-          <span className="count">{view?.types[t] ?? 0}</span>
+          <span className="count">{pad(view?.types[t] ?? 0, 3)}</span>
         </label>
       ))}
 
-      <SectionHead title="CONEXIONES" kind="link" />
+      <SectionHead idx="03" title="Conexiones" kind="link" />
       {links.map((l) => (
         <label key={l} className={`row${hiddenLinks.has(l) ? " off" : ""}`}>
           <input type="checkbox" checked={!hiddenLinks.has(l)} onChange={() => toggle("link", l)} />
           <span className="ico line"><LinkSample type={l} /></span>
           <span className="name">{LINK_LABELS[l]}</span>
-          <span className="count">{view?.link_types[l] ?? 0}</span>
+          <span className="count">{pad(view?.link_types[l] ?? 0, 3)}</span>
         </label>
       ))}
     </aside>

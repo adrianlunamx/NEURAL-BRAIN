@@ -13,7 +13,7 @@ const SCALE_REF = 14;         // camera distance at which labels have their nomi
 const GROUP_NEAR = 9;         // ...and only when the camera comes this close (world units)
 const GROUP_FADE = 2;         // fade-in distance before GROUP_NEAR
 const NOTE_FONT = 0.16;
-const HIT_FONT = 0.34;
+const HIT_FONT = 0.22;
 const RELAYOUT_MS = 300;
 const TOP_NOTES = 12;
 
@@ -96,7 +96,7 @@ function collectSpecs(camera: THREE.Camera): LabelSpec[] {
       specs.push({
         id: `hit:${h.id}`, kind: "hit", world: [h.position[0], h.position[1] + 0.6, h.position[2]],
         text: `${h.label.slice(0, 26)}  ${(h.score * 100).toFixed(0)}%`,
-        fontSize: HIT_FONT, priority: 5 + (h.score ?? 0), color: "#ffffff",  // the query owns the screen
+        fontSize: HIT_FONT * screenScale(camera, new THREE.Vector3(...h.position)), priority: 5 + (h.score ?? 0), color: "#ffffff",
       });
     }
   }

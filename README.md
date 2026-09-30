@@ -26,9 +26,9 @@ Cuando **Claude Code**, **Cursor**, **Codex** o cualquier otro agente trabaja, l
 
 <br>
 
-<img src="docs/img/demo.gif" alt="Dos agentes (Claude Code y Cursor) trabajando: el cerebro se ilumina donde tocan" width="880">
+<img src="docs/img/demo.gif" alt="El cerebro en reposo, dos agentes trabajando y una pregunta recorriéndolo como impulsos nerviosos" width="880">
 
-<sub>Dos agentes trabajando a la vez: Claude Code en <code>neural-brain</code> y Cursor en <code>web-app</code>. Las neuronas se encienden alrededor de cada nota que tocan.</sub>
+<sub>En reposo (EEG en alfa), luego Claude Code y Cursor trabajando a la vez y al final una pregunta: los impulsos recorren los axones desde el hipocampo hasta el lóbulo frontal y el alfa se bloquea.</sub>
 
 </div>
 
@@ -36,17 +36,19 @@ Cuando **Claude Code**, **Cursor**, **Codex** o cualquier otro agente trabaja, l
 
 ## Qué es
 
-**Neural Brain** convierte la memoria de tu agente de código en algo que puedes **ver**. Cada nota (instrucciones, `CLAUDE.md`, decisiones, handoffs, documentación…) es una neurona luciérnaga dentro de un cerebro anatómico. Las notas se conectan entre sí y se iluminan cuando un agente las lee, las busca o las edita. Pregúntale algo y verás cómo recorre su memoria para responderte.
+**Neural Brain** convierte la memoria de tu agente de código en algo que puedes **ver**. Cada nota (instrucciones, `CLAUDE.md`, decisiones, handoffs, documentación…) es una neurona luciérnaga dentro de un cerebro anatómico. Las notas se conectan entre sí y se iluminan cuando un agente las lee, las busca o las edita. Por dentro funciona como un cerebro de verdad: una red de 19.000 neuronas que disparan, se propagan por sus sinapsis y se calman solas. Pregúntale algo y verás cómo recorre su memoria para responderte.
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
 ### 🧠 Un cerebro de verdad
-19.000 neuronas como polvo luminoso dentro de un cerebro anatómico en vista lateral: frontal, parietal, temporal, occipital, hipocampo y cerebelo. Tiene piel punteada de corteza, fibras internas, estrellas y bloom, todo en WebGL.
+19.000 neuronas como polvo luminoso dentro de un cerebro anatómico en vista lateral: frontal, parietal, temporal, occipital, hipocampo y cerebelo, unidas por 240 tractos de sustancia blanca. Tiene piel punteada de corteza, estrellas y bloom, todo en WebGL.
 
-### 🌙 Se enciende al pensar
-En reposo queda en penumbra. Cada acción de un agente dispara neuronas, la activación **se propaga en onda** a sus vecinas y luego se apaga poco a poco. Si lo prefieres siempre iluminado, hay un interruptor.
+### ⚡ Funciona como uno
+Las 19.000 neuronas forman una **red de impulsos**: cada una integra lo que le llega, dispara al cruzar el umbral, queda refractaria un momento y manda el impulso por sus sinapsis, con el retardo de la conducción. Ves los **potenciales de acción viajando por los axones** y por las fibras entre regiones, y una inhibición global evita que la actividad se desborde.
+
+En reposo queda en penumbra, con disparos espontáneos que siguen una onda lenta, y el **EEG simulado** muestra ritmo alfa. Al pensar, el alfa se bloquea y la actividad se enciende. Cada acción de un agente recluta su área: leer va a la corteza visual y temporal, buscar al hipocampo, editar al frontal y compilar al cerebelo. Una pregunta viaja como en un cerebro: se lee, el hipocampo recupera las memorias, estas se asocian entre sí y convergen en el lóbulo frontal para componer la respuesta. Si lo prefieres siempre iluminado, hay un interruptor.
 
 ### ✨ Notas luciérnaga
 Cada nota palpita a su propio ritmo con el color de su grupo, y su tamaño depende del tipo de nota. **D3** (`d3-force-3d`) las acomoda: las atraen sus conexiones y su grupo, y el mismo SDF del backend las mantiene dentro del cerebro.
@@ -61,7 +63,10 @@ El backend detecta **10 tipos de conexión**: `[[wiki]]`, enlaces, índices, res
 Hooks para **Claude Code** (con subagentes) y **Cursor**, `notify` de **Codex** y un CLI/HTTP genérico para el resto. Cada sesión muestra su agente, sus subagentes (`#1 · busca`, `#2 · compila`…), las acciones y los archivos editados con **+/−** líneas.
 
 ### 🔎 Pregúntale
-Escribe en el buscador y pulsa Enter. El cerebro busca por embeddings (ChromaDB) en cuatro fases animadas (INPUT → SEARCH → CONNECT → SYNTHESIZE). Con `ANTHROPIC_API_KEY`, Claude redacta la respuesta. Todo se versiona en **Git**.
+Escribe en el buscador y pulsa Enter. El cerebro busca por embeddings (ChromaDB) en cuatro fases (INPUT → SEARCH → CONNECT → SYNTHESIZE) que ves como tráfico neuronal: leer, recuperar del hipocampo, asociar y componer en el frontal. Con `ANTHROPIC_API_KEY`, Claude redacta la respuesta. Todo se versiona en **Git**.
+
+### 📟 Un instrumento, no un dashboard
+La interfaz se lee como un monitor de laboratorio: lecturas numéricas (neuronas, disparos por segundo, ev/s, señal), osciloscopio con el **EEG simulado** y la actividad de los agentes, registro con hora, reglas y lectura de cámara en el visor. Tipografía IBM Plex, un solo acento ámbar y tema claro de papel.
 
 </td>
 </tr>
@@ -71,12 +76,15 @@ Escribe en el buscador y pulsa Enter. El cerebro busca por embeddings (ChromaDB)
 
 <table>
 <tr>
-<td width="50%"><img src="docs/img/hero.png" alt="Agentes trabajando"><br><sub><b>Trabajando.</b> Panel <i>Ahora</i> con cada sesión y su agente, subagentes, acciones y archivos editados en la última media hora.</sub></td>
-<td width="50%"><img src="docs/img/rest.png" alt="Cerebro en reposo"><br><sub><b>En reposo.</b> Sin actividad, el cerebro queda en penumbra y solo se ve la silueta.</sub></td>
+<td width="50%"><img src="docs/img/hero.png" alt="Agentes trabajando"><br><sub><b>Trabajando.</b> Cada acción recluta su área y la actividad se propaga. Panel <i>Ahora</i> con sesiones, subagentes, acciones y archivos editados; el EEG pasa a beta.</sub></td>
+<td width="50%"><img src="docs/img/rest.png" alt="Cerebro en reposo"><br><sub><b>En reposo.</b> Penumbra, unos pocos disparos espontáneos que siguen una onda lenta y el EEG en ritmo alfa.</sub></td>
+</tr>
+<tr>
+<td colspan="2"><img src="docs/img/spikes.png" alt="Potenciales de acción de cerca"><br><sub><b>De cerca.</b> Cada trazo cálido es un potencial de acción viajando por un axón hasta su sinapsis; los destellos son neuronas disparando.</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/img/note.png" alt="Ficha de una nota"><br><sub><b>Una nota.</b> Clic en una luciérnaga: su grupo, tipo, texto, cuántas veces la usaron los agentes y todas sus conexiones.</sub></td>
-<td width="50%"><img src="docs/img/connect.png" alt="Pregunta en fase CONNECT"><br><sub><b>Pensando.</b> Una pregunta en fase CONNECT: los rayos llegan a las notas que responden, con su porcentaje de similitud.</sub></td>
+<td width="50%"><img src="docs/img/connect.png" alt="Pregunta en fase CONNECT"><br><sub><b>Pensando.</b> Una pregunta en fase CONNECT: las memorias que responden (con su % de similitud) se excitan entre sí antes de converger en el frontal.</sub></td>
 </tr>
 <tr>
 <td colspan="2"><img src="docs/img/list.png" alt="Vista Lista"><br><sub><b>Lista.</b> Todas las notas en una tabla ordenable por conexiones, uso o fecha, con los mismos filtros de grupo, tipo y búsqueda.</sub></td>
@@ -101,16 +109,18 @@ flowchart LR
     end
     subgraph C["Frontend · React + WebGL"]
         D3["D3 force<br/>acomoda las notas"] --> GL["WebGL<br/>19k neuronas · luciérnagas<br/>conexiones · agentes"]
+        SIM["Red de impulsos<br/>disparos · sinapsis · EEG"] --> GL
     end
     CC & CU & CX --> H
-    ACT & NOTES -- "SSE en vivo" --> D3
+    ACT & NOTES -- "SSE en vivo" --> D3 & SIM
 ```
 
 | Pieza | Qué hace |
 |---|---|
 | **Python** | Lee las notas y la memoria, las conecta entre sí y arma el cerebro (SDF anatómico, 19k neuronas, fibras) en un segundo. |
 | **JavaScript + D3** | Acomoda cada nota como una neurona dentro del volumen y dibuja sus conexiones. |
-| **WebGL** | La tarjeta gráfica dibuja las 19.000 neuronas, las fibras, la luz y las estrellas en una llamada por capa. |
+| **Red de impulsos** | Simula las 19.000 neuronas en el navegador: umbral, periodo refractario, sinapsis con retardo, tractos entre regiones, inhibición y el EEG. Menos de 1 ms por paso. |
+| **WebGL** | La tarjeta gráfica dibuja las 19.000 neuronas, los impulsos, las fibras, la luz y las estrellas en una llamada por capa. |
 | **Hooks** | Cada cosa que hace el agente (leer, buscar, editar, lanzar subagentes, compilar, probar, hacer commit) se anota al instante. |
 | **SSE** | Un servidor propio en vivo que lo manda todo al cerebro en tiempo real: por eso lo ves pensar mientras trabaja. |
 | **Git** | Cada cambio del grafo queda guardado paso a paso, con historial y restauración. |
@@ -220,9 +230,12 @@ Acciones: `lee` `busca` `edita` `crea` `git` `commit` `compila` `prueba` `script
 | Grupos · Tipos · Conexiones | barra lateral | Mostrar u ocultar por grupo, tipo de nota o tipo de conexión (`todos` / `ninguno`) |
 | Grafo · Lista | arriba a la izquierda | Cerebro 3D o tabla ordenable de notas |
 | Grupos · Uso | arriba a la izquierda | Color de las notas por grupo o por cuánto las usan los agentes |
-| Siempre encendido | barra superior | Apagado (por defecto): reposa a oscuras y se ilumina al pensar |
-| Animaciones | barra superior · `A` | Rotación, parpadeo de las luciérnagas y pulsos por las conexiones |
-| problemas | barra superior | Enlaces rotos, notas sin conexiones y duplicados (clic → la nota) |
+| Encendido | barra superior | Apagado (por defecto): reposa a oscuras y se ilumina al pensar; encendido: siempre despierto |
+| Animación | barra superior · `A` | Rotación, parpadeo de las luciérnagas y pulsos por las conexiones |
+| Claro · Oscuro | barra superior | Tema de la interfaz |
+| Problemas | lectura de la barra superior | Enlaces rotos, notas sin conexiones y duplicados (clic → la nota) |
+| Disparos · Actividad · Señal | barra superior | Disparos por segundo de la red, eventos de agentes por segundo y estado de la conexión |
+| EEG · actividad | abajo a la derecha | EEG simulado (α en reposo, β al pensar) y eventos de los agentes en los últimos 2 min |
 | + · − · Encuadrar · Reacomodar · Seguir | abajo · `F` | Zoom, encuadrar las notas, recalcular el layout D3, cámara que sigue al agente activo |
 | Probar | panel *Ahora* | Simula a dos agentes (Claude Code y Cursor) trabajando |
 | Vista inicial | `H` · `Esc` suelta la nota | |
@@ -266,9 +279,10 @@ Frontend (`frontend/.env`): `VITE_API_URL=http://localhost:8000`.
 
 ```bash
 make test        # backend (pytest), sin red ni API key
+cd frontend && npm run check:sim   # la red de impulsos: reposo, pensar, sin desbordarse, vuelve sola
 ```
 
-Cubren las notas y sus conexiones, los problemas, la actividad (sesiones por agente, subagentes, archivos +/−, estados), los adaptadores de Claude Code, Cursor y Codex y el CLI genérico, el layout anatómico, las fases de las preguntas, el SSE, Git y la API completa. El CI ejecuta además `tsc` y el build del frontend.
+Cubren las notas y sus conexiones, los problemas, la actividad (sesiones por agente, subagentes, archivos +/−, estados), los adaptadores de Claude Code, Cursor y Codex y el CLI genérico, el layout anatómico, las fases de las preguntas, el SSE, Git y la API completa. El CI ejecuta además `tsc`, el build del frontend y `check:sim`.
 
 <details>
 <summary><b>Detalles técnicos: layout anatómico, diferencias con la especificación y problemas comunes</b></summary>
@@ -291,19 +305,20 @@ cd backend && python brain_layout.py --neurons 19000 --out brain_layout.json \
 - Fuente Inter incluida en el repo, con un error boundary para que el texto 3D no deje la escena en negro.
 - `query_id` coherente entre la respuesta y los eventos, y 409 si ya hay una pregunta en curso.
 - Respuesta de Claude en SYNTHESIZE (el spec no usaba LLM).
-- Versiones: vite 8, three 0.186, react-spring 10 (compatible con React 19).
+- Las fases de la pregunta se dibujan como impulsos de la red, sin esferas ni rayos.
+- Versiones: vite 8, three 0.186.
 
 ### Problemas comunes
 
 - **La primera carga tarda**: el backend siembra 19k neuronas y descarga el modelo de embeddings.
-- **FPS bajos**: desactiva *Animaciones* (`A`) y oculta las conexiones *Comparte* y *Cadena*. Necesita WebGL2 con GPU.
+- **FPS bajos**: desactiva *Animación* (`A`) y oculta las conexiones *Comparte* y *Cadena*. Necesita WebGL2 con GPU. La red de impulsos cuesta menos de 1 ms por fotograma.
 - **El repo del grafo crece**: cada snapshot son unos 8 MB de JSON, que Git comprime. `make clean` empieza de cero.
 
 </details>
 
 ## Marca
 
-El logo está en [`docs/brand/`](docs/brand): `logo-dark.svg` y `logo-light.svg` (horizontal, para fondo oscuro y claro) y `logo-mark.svg` (el símbolo, también usado como favicon). Es un cerebro de perfil hecho de neuronas conectadas, en degradado violeta, cian y rosa, los colores de la app.
+El logo está en [`docs/brand/`](docs/brand): `logo-dark.svg` y `logo-light.svg` (horizontal, para fondo oscuro y claro) y `logo-mark.svg` (el símbolo, también usado como favicon). Es un cerebro de perfil hecho de neuronas conectadas, en degradado violeta, cian y rosa.
 
 ## Licencia
 
