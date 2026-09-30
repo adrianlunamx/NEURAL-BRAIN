@@ -43,20 +43,30 @@ class GitStore:
         self.graph_file = self.repo_dir / "graph.json"
 
     # ------------------------------------------------------------------
+    def _commit(self, message: str) -> str:
+        """Stage graph.json and commit with the git CLI.
+
+        Plain `git` calls spawn a fresh process each time; GitPython's index API
+        reuses a long-lived `git cat-file` helper that dies on Ctrl+C (SIGINT
+        hits the whole process group), which broke the shutdown snapshot.
+        """
+        self.repo.git.add(self.graph_file.name)
+        self.repo.git.commit("-m", message, "--allow-empty")
+        return self.repo.git.rev_parse("--short=7", "HEAD")
+
     def snapshot(self, message: Optional[str] = None) -> str:
         """Serialize the graph, write graph.json, commit. Returns short hash."""
         with self.lock:
             self.graph.save_json(self.graph_file)
-            self.repo.index.add([self.graph_file.name])
             msg = message or (
                 f"brain snapshot: {self.graph.graph.number_of_nodes()} neurons, "
                 f"{self.graph.graph.number_of_edges()} edges, "
                 f"{self.graph.event_count} events"
             )
-            commit = self.repo.index.commit(msg)
+            short = self._commit(msg)
             self._last_commit_at = datetime.now(timezone.utc)
             self._last_committed_events = self.graph.event_count
-            return commit.hexsha[:7]
+            return short
 
     def mark_loaded(self) -> None:
         """After restoring from graph.json, don't treat the loaded events as new."""
@@ -81,21 +91,19 @@ class GitStore:
                 return False
             ok = self.graph.load_json(self.graph_file)
             # re-commit the restored state so history stays linear and honest
-            self.repo.index.add([self.graph_file.name])
-            self.repo.index.commit(f"restore: rolled back to {commit_hash[:7]}")
+            self._commit(f"restore: rolled back to {commit_hash[:7]}")
             self._last_committed_events = self.graph.event_count
             return ok
 
     def log(self, limit: int = 20) -> List[dict]:
         with self.lock:
-            if not self.repo.head.is_valid():  # no commits yet
+            try:
+                self.repo.git.rev_parse("--verify", "HEAD")
+            except git.GitCommandError:  # no commits yet
                 return []
+            raw = self.repo.git.log(f"-{limit}", "--format=%h%x1f%s%x1f%cI")
             entries = []
-            for commit in self.repo.iter_commits(max_count=limit):
-                entries.append({
-                    "hash": commit.hexsha[:7],
-                    "message": str(commit.message).strip(),
-                    "committed_at": datetime.fromtimestamp(
-                        commit.committed_date, tz=timezone.utc).isoformat(),
-                })
+            for line in raw.splitlines():
+                short, msg, when = line.split("\x1f")
+                entries.append({"hash": short[:7], "message": msg, "committed_at": when})
             return entries

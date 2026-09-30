@@ -81,7 +81,10 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(autocommit_loop())
     yield
     task.cancel()
-    await asyncio.to_thread(gitstore.snapshot, "shutdown snapshot")
+    try:
+        await asyncio.to_thread(gitstore.snapshot, "shutdown snapshot")
+    except Exception as exc:  # graph.json is written first, so nothing is lost
+        print(f"[neural-brain] shutdown snapshot not committed: {exc}")
 
 
 app = FastAPI(title="Neural Brain", version="2.0.0", lifespan=lifespan)
