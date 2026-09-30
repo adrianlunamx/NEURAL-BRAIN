@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { QueryHit } from "../types";
 import { FONT_URL } from "../config";
 import { emitActivation, useBrainStore } from "../store/brainStore";
+import { layoutLabels } from "./labelLayout";
 
 type V3 = [number, number, number];
 
@@ -104,9 +105,24 @@ function ConnectPhase({ origin, hits }: { origin: V3; hits: QueryHit[] }) {
   useEffect(() => {
     hits.forEach((h) => emitActivation(h.id, 1));
   }, [hits]);
+  // v2.1: stagger the "%" labels along Y so nearby hits don't overlap
+  const connectLabels = useMemo(
+    () =>
+      layoutLabels(
+        hits.map((h) => ({
+          id: h.id,
+          x: h.position[0],
+          y: h.position[1] + 0.6, // float above the neuron
+          z: h.position[2],
+          priority: h.score ?? 0, // the best match keeps its spot
+        })),
+        { minGap: 0.9 },
+      ),
+    [hits],
+  );
   return (
     <group>
-      {hits.map((h) => (
+      {hits.map((h, i) => (
         <group key={h.id}>
           <Line
             points={[new THREE.Vector3(...origin), new THREE.Vector3(...h.position)]}
@@ -116,8 +132,10 @@ function ConnectPhase({ origin, hits }: { origin: V3; hits: QueryHit[] }) {
             opacity={0.95}
           />
           {showLabels && (
-            <Billboard position={[h.position[0], h.position[1] + 0.75, h.position[2]]}>
+            <Billboard position={[h.position[0], connectLabels[i].ly, h.position[2]]}>
               <Text font={FONT_URL}
+                renderOrder={10}
+                material-depthTest={false}
                 fontSize={0.38}
                 color="#ffffff"
                 anchorX="center"
