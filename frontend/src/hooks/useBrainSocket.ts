@@ -66,8 +66,16 @@ export function useBrainSocket() {
     es.addEventListener("edge_added", (() => {}) as EventListener); // reserved
     es.addEventListener("stats", onStats as EventListener);
     es.addEventListener("graph_reloaded", onGraphReloaded as EventListener);
+    // EventSource reconnects on its own; after a lost connection (backend
+    // restarted) the graph may have changed, so resync it once reopened.
+    let connectionLost = false;
     es.onerror = () => {
-      // EventSource auto-reconnects; nothing to do here.
+      connectionLost = true;
+    };
+    es.onopen = () => {
+      if (!connectionLost) return;
+      connectionLost = false;
+      void loadGraph();
     };
 
     async function loadGraph() {
