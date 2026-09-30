@@ -21,7 +21,7 @@ flowchart TB
     end
     subgraph FE["frontend — React + R3F :5173"]
         SOCK["useBrainSocket.ts"] --> STORE["brainStore.ts (zustand)\n+ activation / upsert bus"]
-        STORE --> CANVAS["BrainCanvas: NeuronDust (19k points) · BrainShell · Fibers · NotesLayer + LinksLayer (D3) · AgentMarkers · FloatingLabels · QueryAnimation"]
+        STORE --> CANVAS["BrainCanvas: NeuronDust (19k points) · BrainShell · Fibers · FireflyNotes + LinksLayer (D3) · AgentMarkers · FloatingLabels · QueryAnimation"]
     end
     HOOKS -->|POST /hooks/event| API
     API <--> GS & VS
@@ -55,7 +55,7 @@ flowchart TB
 |---|---|
 | `NeuronDust` | Las 19k neuronas como un único `THREE.Points` (polvo aditivo con titileo). Las activaciones viven en un atributo que decae fuera de React. |
 | `noteLayout.ts` | `d3-force-3d`: enlaces (fuerza según el tipo), repulsión, colisión, atracción al ancla del grupo y una fuerza que devuelve cada nota al interior del cerebro por el gradiente del SDF (`sdfBrain`, espejo de Python). Conserva la posición de las notas que ya existían; `Reacomodar` usa otra semilla. |
-| `NotesLayer` / `LinksLayer` | Un `Points` con la forma de cada tipo dibujada en el shader y un `LineSegments` con curvas de Bézier dobladas hacia el centro (efecto de haz), trazo continuo/discontinuo/punteado y pulso viajero. `NotesAnimator` interpola las posiciones hacia el layout (`livePositions`, fuera de React). |
+| `FireflyNotes` / `LinksLayer` | Un `Points` donde cada nota es una **luciérnaga** (núcleo blanco + halo del color de su grupo) que palpita a su propio ritmo irregular (fase determinista por id, calculada en el vertex shader; se congela sin *Animaciones*; el tipo se ve en el tamaño) y un `LineSegments` con curvas de Bézier dobladas hacia el centro (efecto de haz), trazo continuo/discontinuo/punteado y pulso viajero. `NotesAnimator` interpola las posiciones hacia el layout (`livePositions`, fuera de React). |
 | `AgentMarkers` | Un marcador por agente activo que viaja a la nota que tocó y un arco desde el punto de su sesión. |
 | `brainStore` | zustand con selectores finos; `onActivation` y `onNeuronUpsert` son buses fuera de React (60 fps sin re-render). `graphVersion` fuerza a reconstruir instancias tras un restore. |
 | `Fibers` | Un único `LineSegments` con shader de pulso viajero. |
