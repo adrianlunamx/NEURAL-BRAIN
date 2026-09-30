@@ -26,3 +26,10 @@ def test_edges_report_distance_and_near_flag(brain):
     edges = asyncio.run(brain.graph_payload())["edges"]
     assert all(e["near"] == (e["distance"] < 8.0 * brain.graph.scale / 12) for e in edges)
     assert any(e["near"] for e in edges)
+
+
+def test_neurons_never_touch(brain):
+    asyncio.run(brain.seed())
+    pts = np.array([[p["x"], p["y"], p["z"]] for p in brain.graph.positions().values()])
+    d = np.linalg.norm(pts[:, None] - pts[None], axis=-1) + np.eye(len(pts)) * 1e9
+    assert d.min() > 1.0  # neuron radius is at most 0.5

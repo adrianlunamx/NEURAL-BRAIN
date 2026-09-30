@@ -15,6 +15,8 @@ from utils.logger import logger
 
 NODE_TYPES = {"concept", "fact"}
 TYPE_COLORS = {"concept": "#00f5ff", "fact": "#39ff14"}
+# bump when a layout algorithm changes so stored positions get recomputed
+LAYOUT_VERSION = 3
 
 
 class GraphStore:
@@ -36,7 +38,7 @@ class GraphStore:
             raw = json.loads(self.path.read_text())
             self.graph = nx.node_link_graph(raw["graph"], edges="links")
             self._positions = raw.get("positions", {})
-            stale_mode = raw.get("layout_mode") != self.layout_mode
+            stale_mode = raw.get("layout_mode") != self.layout_mode or raw.get("layout_version") != LAYOUT_VERSION
             self._dirty = stale_mode or set(self._positions) != set(self.graph.nodes)
             logger.info("Graph loaded: {} nodes, {} edges", self.graph.number_of_nodes(), self.graph.number_of_edges())
         except Exception as exc:
@@ -49,6 +51,7 @@ class GraphStore:
             "graph": nx.node_link_data(self.graph, edges="links"),
             "positions": self._positions,
             "layout_mode": self.layout_mode,
+            "layout_version": LAYOUT_VERSION,
         }
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps(payload))
