@@ -1,6 +1,6 @@
 import { LinkType, NoteType } from "../../types";
 import { LINK_STYLE } from "../LinksLayer";
-import { TYPE_SHAPE } from "../NotesLayer";
+import { TYPE_SHAPE } from "../FireflyNotes";
 
 export const TYPE_LABELS: Record<NoteType, string> = {
   instrucciones: "Instrucciones", indice: "Índice", usuario: "Usuario", feedback: "Feedback",
@@ -16,7 +16,7 @@ export const PROBLEM_LABELS: Record<string, string> = {
   enlace_roto: "Enlace roto", huerfana: "Sin conexiones", duplicado: "Posible duplicado",
 };
 
-/** Same shapes as the 3D notes (NotesLayer fragment shader). */
+/** Glyph of each note type for the 2D legend (in 3D every note is a firefly; the type sets its size). */
 export function TypeIcon({ type, color = "currentColor", size = 12 }: { type: NoteType; color?: string; size?: number }) {
   const shape = TYPE_SHAPE[type];
   return (

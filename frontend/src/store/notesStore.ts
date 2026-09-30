@@ -139,7 +139,7 @@ export function searchMatches(view: NotesView | null, search: string): Set<strin
 // ---------------------------------------------------------------------------
 export const livePositions = new Map<string, THREE.Vector3>();
 
-// note pulse bus (an agent touched a note): NotesLayer brightens it
+// note pulse bus (an agent touched a note): FireflyNotes makes it flare
 type PulseListener = (noteId: string, color: string) => void;
 const pulseListeners = new Set<PulseListener>();
 

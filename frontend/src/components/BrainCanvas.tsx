@@ -10,7 +10,7 @@ import { BrainShell } from "./BrainShell";
 import { FloatingLabels } from "./FloatingLabels";
 import { Fibers } from "./Fibers";
 import { QueryAnimation } from "./QueryAnimation";
-import { NotesAnimator, NotesLayer } from "./NotesLayer";
+import { NotesAnimator, FireflyNotes } from "./FireflyNotes";
 import { LinksLayer } from "./LinksLayer";
 import { AgentMarkers, markerPositions } from "./AgentMarkers";
 import { livePositions, useNotesStore } from "../store/notesStore";
@@ -154,7 +154,7 @@ export function BrainCanvas() {
         <BrainShell />
         <NotesAnimator />
         <LinksLayer />
-        <NotesLayer />
+        <FireflyNotes />
         <AgentMarkers />
       </Suspense>
       {/* text (fonts) loads in its own boundary: it can never blank the neurons */}
