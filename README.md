@@ -43,7 +43,7 @@ Cuando **Claude Code**, **Cursor**, **Codex** o cualquier otro agente trabaja, l
 <td width="50%" valign="top">
 
 ### 🧠 Un cerebro de verdad
-19.000 neuronas como polvo luminoso dentro de un cerebro anatómico en vista lateral: frontal, parietal, temporal, occipital, hipocampo y cerebelo. Tiene piel punteada de corteza, fibras internas, estrellas y bloom, todo en WebGL.
+Un cerebro anatómico en vista lateral: circunvoluciones y surcos, lóbulo temporal bajo la cisura lateral, cerebelo con estrías y tronco encefálico. Dentro hay 19.000 neuronas como polvo luminoso, repartidas entre lóbulo frontal, parietal, temporal, occipital, hipocampo y cerebelo. Dos estilos: **Orgánico** (corteza perlada con luz dorada por dentro, el predeterminado) y **Neón** (piel punteada, fibras azules y estrellas).
 
 ### 🌙 Se enciende al pensar
 En reposo queda en penumbra. Cada acción de un agente dispara neuronas, la activación **se propaga en onda** a sus vecinas y luego se apaga poco a poco. Si lo prefieres siempre iluminado, hay un interruptor.
@@ -77,6 +77,10 @@ Escribe en el buscador y pulsa Enter. El cerebro busca por embeddings (ChromaDB)
 <tr>
 <td width="50%"><img src="docs/img/note.png" alt="Ficha de una nota"><br><sub><b>Una nota.</b> Clic en una luciérnaga: su grupo, tipo, texto, cuántas veces la usaron los agentes y todas sus conexiones.</sub></td>
 <td width="50%"><img src="docs/img/connect.png" alt="Pregunta en fase CONNECT"><br><sub><b>Pensando.</b> Una pregunta en fase CONNECT: los rayos llegan a las notas que responden, con su porcentaje de similitud.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/img/cortex.png" alt="Corteza de cerca"><br><sub><b>De cerca.</b> Circunvoluciones con relieve, iluminadas desde arriba, con filamentos y chispas doradas por dentro.</sub></td>
+<td width="50%"><img src="docs/img/neon.png" alt="Estilo Neón"><br><sub><b>Estilo Neón.</b> El mismo cerebro con piel punteada, fibras azules y estrellas. Se cambia desde la barra superior.</sub></td>
 </tr>
 <tr>
 <td colspan="2"><img src="docs/img/list.png" alt="Vista Lista"><br><sub><b>Lista.</b> Todas las notas en una tabla ordenable por conexiones, uso o fecha, con los mismos filtros de grupo, tipo y búsqueda.</sub></td>
@@ -220,6 +224,7 @@ Acciones: `lee` `busca` `edita` `crea` `git` `commit` `compila` `prueba` `script
 | Grupos · Tipos · Conexiones | barra lateral | Mostrar u ocultar por grupo, tipo de nota o tipo de conexión (`todos` / `ninguno`) |
 | Grafo · Lista | arriba a la izquierda | Cerebro 3D o tabla ordenable de notas |
 | Grupos · Uso | arriba a la izquierda | Color de las notas por grupo o por cuánto las usan los agentes |
+| Orgánico · Neón | barra superior | Estilo del cerebro: corteza perlada y dorada, o neón con estrellas |
 | Siempre encendido | barra superior | Apagado (por defecto): reposa a oscuras y se ilumina al pensar |
 | Animaciones | barra superior · `A` | Rotación, parpadeo de las luciérnagas y pulsos por las conexiones |
 | problemas | barra superior | Enlaces rotos, notas sin conexiones y duplicados (clic → la nota) |
@@ -275,7 +280,7 @@ Cubren las notas y sus conexiones, los problemas, la actividad (sesiones por age
 
 ### Layout anatómico (`backend/brain_layout.py`)
 
-El cerebro es un campo de distancia con signo (SDF). Lo forman el cerebro con base aplanada y cisura entre hemisferios, un abultamiento frontal, el cerebelo fusionado bajo el lóbulo occipital y el tronco encefálico. Las 19.000 neuronas se muestrean dentro y cada punto se clasifica en su región con `classify_regions`, espejada en `classifyRegion()` y `sdfBrain()` del frontend. `brain_layout.json` y `brain_shell.json` ya vienen generados:
+El cerebro es un campo de distancia con signo (SDF). Lo forman el cerebro con base aplanada y cisura entre hemisferios, un abultamiento frontal, los lóbulos temporales bajo la cisura lateral (de Silvio), el cerebelo fusionado bajo el lóbulo occipital y el tronco encefálico. En v3, la capa exterior lleva además surcos sinuosos (`gyri_field`) y estrías en el cerebelo. El estilo Orgánico repite ese mismo patrón en el shader para darle relieve. Las 19.000 neuronas se muestrean dentro y cada punto se clasifica en su región con `classify_regions`, espejada en `classifyRegion()` y `sdfBrain()` del frontend. `brain_layout.json` y `brain_shell.json` ya vienen generados:
 
 ```bash
 cd backend && python brain_layout.py --neurons 19000 --out brain_layout.json \

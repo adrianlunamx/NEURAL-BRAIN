@@ -37,7 +37,7 @@ flowchart TB
 | Módulo | Qué hace |
 |---|---|
 | `models.py` | Contratos Pydantic (espejados en `frontend/src/types.ts`). |
-| `../brain_layout.py` | v2.1: el cerebro como SDF (vista lateral; cerebelo fusionado bajo el occipital, polo frontal redondeado), `classify_regions` (espejada en `classifyRegion()` del frontend), muestreo uniforme en el volumen, generación de `brain_layout.json` y de la cáscara `brain_shell.json` (marching cubes). |
+| `../brain_layout.py` | v3: el cerebro como SDF (vista lateral; cerebelo fusionado bajo el occipital, polo frontal redondeado, lóbulos temporales bajo la cisura lateral, surcos sinuosos `gyri_field` y estrías del cerebelo en la capa exterior; `sdf_brain_coarse` es la forma sin pliegues que espeja el frontend), `classify_regions` (espejada en `classifyRegion()` del frontend), muestreo uniforme en el volumen, generación de `brain_layout.json` y de la cáscara `brain_shell.json` (marching cubes). |
 | `graph_store.py` | 19.000 neuronas sembradas desde `brain_layout.json` (6 regiones como zonas de un mismo volumen; hipocampo la menor); neuronas nuevas muestreadas dentro de su región; snapshots v1 migrados al cargar; 2 aristas locales por neurona; 240 fibras entre regiones; **orden de render estratificado proporcional**: en cualquier prefijo cada región aparece en su proporción (p. ej. el 25 % de cualquier prefijo es frontal), así cada nivel LOD es un cerebro completo. Cuando está lleno, `add_neuron` **recicla** la neurona semilla menos activada (conserva su posición en el orden), elegida con un min-heap perezoso en vez de reordenar 19k nodos en cada alta. |
 | `vector_store.py` | ChromaDB con `sentence-transformers`; `EMBEDDING_BACKEND=hash` usa un embedder de hashing sin descargas. |
 | `git_store.py` | `graph.json` en un repo Git local; commits con el CLI de `git` (sobrevive a Ctrl+C); auto-commit cada 25 eventos / 60 s; `restore(hash)` recarga y vuelve a commitear. |
@@ -54,6 +54,7 @@ flowchart TB
 
 | Pieza | Rendimiento |
 |---|---|
+| `BrainShell` | Cáscara de marching cubes con dos estilos. **Orgánico**: material perlado iluminado desde arriba; el shader repite `gyri_field` para dar relieve a las circunvoluciones (bump map) y sombra a los surcos, con luz cálida por dentro que crece al pensar. **Neón**: fresnel aditivo y piel punteada. `arousal.warm` hace la transición de paleta en todas las capas. |
 | `NeuronDust` | Las 19k neuronas como un único `THREE.Points` (polvo aditivo con titileo). Casi invisibles en reposo; cada activación enciende la neurona (se apaga en ~15 s) y, con un hash espacial, programa una **onda** que dispara a las vecinas según la distancia. `emitSpark(posición)` hace lo mismo alrededor de una nota o de un hit. |
 | `arousal.ts` | Nivel global de "despierto" (0–1): lo suben las acciones de los agentes y las preguntas, decae solo; todas las capas (polvo, notas, conexiones, corteza, fibras, etiquetas) lo usan como brillo base. `noteAwake` hace lo mismo por nota. |
 | `noteLayout.ts` | `d3-force-3d`: enlaces (fuerza según el tipo), repulsión, colisión, atracción al ancla del grupo y una fuerza que devuelve cada nota al interior del cerebro por el gradiente del SDF (`sdfBrain`, espejo de Python). Conserva la posición de las notas que ya existían; `Reacomodar` usa otra semilla. |
