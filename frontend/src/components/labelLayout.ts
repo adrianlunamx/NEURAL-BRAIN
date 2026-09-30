@@ -1,3 +1,8 @@
+/**
+ * @deprecated Superseded by labelLayout2D.ts (screen-space de-collision).
+ * FloatingLabels.tsx is now the single renderer for region + CONNECT labels;
+ * this module is kept for reference only and is no longer imported.
+ */
 // labelLayout — v2.1 de-collision for the CONNECT-phase floating labels.
 //
 // Pure function (no React, no three.js): given the floating "%" labels of

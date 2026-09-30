@@ -1,6 +1,11 @@
 import { useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
+import * as THREE from "three";
 import { LOD_THRESHOLDS } from "../config";
+import { BRAIN_CENTER } from "../config/brainConfig";
+
+// distance is measured to the brain, not the origin: panning must not change the LOD level
+const _center = new THREE.Vector3(...BRAIN_CENTER);
 
 /** Pure function: camera distance -> target instance count. */
 export function getLODCount(distance: number): number {
@@ -23,7 +28,7 @@ export function useLOD(
   const camera = useThree((s) => s.camera);
   const current = useRef(19000);
   useFrame(() => {
-    const dist = camera.position.length();
+    const dist = camera.position.distanceTo(_center);
     // never draw instances that were not initialised (they would pile up at the origin)
     const target = Math.min(getLODCount(dist), maxCount());
     current.current += (target - current.current) * smoothing;

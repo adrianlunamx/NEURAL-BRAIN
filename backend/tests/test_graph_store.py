@@ -48,6 +48,22 @@ def test_add_neuron_recycles_the_stalest_seed_when_full():
     assert nid2 != nid
 
 
+def test_recycle_heap_matches_a_full_sort_after_activations():
+    g = seeded()
+    g.add_neuron("warm up the heap", Region.FRONTAL, source="hook")
+    # activate (in order) the seeds the heap would pick next: its entries go stale
+    fresh = [nid for nid in g.render_order[:50] if g.graph.nodes[nid]["source"] == "seed"][:10]
+    for nid in fresh:
+        g.activate(nid, 0.5)
+    for i in range(30):
+        seeds = [(str(d.get("last_activated_at") or "1970-01-01"), n)
+                 for n, d in g.graph.nodes(data=True) if d.get("source") == "seed"]
+        stalest = min(key for key, _ in seeds)
+        candidates = {n for key, n in seeds if key == stalest}
+        nid, recycled = g.add_neuron(f"hook {i}", Region.TEMPORAL, source="hook")
+        assert recycled and nid in candidates and nid not in fresh
+
+
 def test_neurons_live_inside_one_brain_in_their_region():
     g = seeded()
     ids = g.render_order[:3000]

@@ -153,7 +153,8 @@ python brain_layout.py --no-shell                              # sólo el layout
 - Neuronas nuevas (ingesta, hooks, consultas) se colocan por rejection sampling del SDF **dentro de su región** (un `Read` sigue cayendo en el temporal).
 - Un `graph.json` guardado con el layout v1 (6 elipsoides) se **migra** al cargarlo: cada neurona conserva id, región, label, aristas y embedding; sólo cambia de posición.
 - Sin `brain_shell.json` la app funciona igual (aviso en consola, sin cáscara).
-- En CONNECT, los `%` flotantes se escalonan en Y con `layoutLabels` (`frontend/src/components/labelLayout.ts`, gap 0.9) y se dibujan por encima de las neuronas, así no se enciman.
+- Los nombres de región y los `%` de CONNECT se de-colisionan juntos **en espacio de pantalla** (`FloatingLabels.tsx` + `labelLayout2D.ts`): ninguno tapa a otro, tampoco mientras el cerebro rota.
+- El backend escucha en `127.0.0.1` por defecto (la API no tiene autenticación); usa `API_HOST` sólo si necesitas acceso desde la red, con un proxy con auth delante.
 
 ## Diferencias con la especificación
 

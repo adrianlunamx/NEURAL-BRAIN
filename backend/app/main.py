@@ -31,7 +31,11 @@ def _path(env: str, default: str) -> Path:
     return p if p.is_absolute() else (BACKEND_DIR / p).resolve()
 
 
-API_HOST = os.getenv("API_HOST", "0.0.0.0")
+# FIX (review #4): the API has no authentication (hooks POST freely), so it must
+# not listen on all interfaces by default. 127.0.0.1 keeps it reachable for the
+# local frontend and Claude Code hooks; override with API_HOST env when you
+# really need LAN access (and put a reverse proxy with auth in front).
+API_HOST = os.getenv("API_HOST", "127.0.0.1")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 CHROMA_DIR = _path("CHROMA_DIR", "data/chroma")
@@ -49,15 +53,24 @@ async def lifespan(app: FastAPI):
     gitstore = GitStore(GRAPH_REPO_DIR, graph,
                         auto_commit_every=AUTO_COMMIT_EVERY,
                         auto_commit_seconds=AUTO_COMMIT_SECONDS)
-    # Restore previous session if a snapshot exists, else seed and take the first one.
-    if gitstore.graph_file.exists() and graph.load_json(gitstore.graph_file) \
-            and graph.graph.number_of_nodes() > 0:
-        gitstore.mark_loaded()
-        print(f"[neural-brain] restored graph from previous snapshot: "
-              f"{graph.graph.number_of_nodes()} neurons")
-    else:
+
+    # FIX (review #2): restoring or seeding touches ~19k nodes + ~38k edges and
+    # takes seconds. Doing it inline would block the event loop, so the server
+    # could not answer /health or SSE during startup. Run it in a worker thread.
+    def _load_or_seed() -> bool:
+        """True when a previous snapshot was restored, False when freshly seeded."""
+        if gitstore.graph_file.exists() and graph.load_json(gitstore.graph_file) \
+                and graph.graph.number_of_nodes() > 0:
+            gitstore.mark_loaded()
+            print(f"[neural-brain] restored graph from previous snapshot: "
+                  f"{graph.graph.number_of_nodes()} neurons")
+            return True
         print("[neural-brain] seeding 19,000 neurons ...")
         graph.seed_brain()
+        return False
+
+    restored = await asyncio.to_thread(_load_or_seed)
+    if not restored:
         h = await asyncio.to_thread(gitstore.snapshot, "initial brain seed: 19,000 neurons")
         print(f"[neural-brain] initial snapshot committed: {h}")
     print(f"[neural-brain] brain ready: {graph.graph.number_of_nodes()} neurons, "

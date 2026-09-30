@@ -7,7 +7,7 @@ import { useBrainSocket } from "../hooks/useBrainSocket";
 import { useBrainStore } from "../store/brainStore";
 import { NeuronField } from "./NeuronField";
 import { BrainShell } from "./BrainShell";
-import { RegionLabels } from "./RegionLabels";
+import { FloatingLabels } from "./FloatingLabels";
 import { Fibers } from "./Fibers";
 import { QueryAnimation } from "./QueryAnimation";
 import { BRAIN_CENTER } from "../config/brainConfig";
@@ -93,7 +93,7 @@ export function BrainCanvas() {
       {/* text (fonts) loads in its own boundary: it can never blank the neurons */}
       <SceneErrorBoundary>
         <Suspense fallback={null}>
-          <RegionLabels />
+          <FloatingLabels />
           <QueryAnimation />
         </Suspense>
       </SceneErrorBoundary>
