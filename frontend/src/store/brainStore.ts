@@ -6,7 +6,6 @@ import {
 export interface Settings {
   anim: boolean;      // rotación automática
   alwaysLit: boolean; // cerebro siempre iluminado (si no, se enciende al pensar)
-  style: "organico" | "neon"; // cerebro perlado y dorado, o de neón
   autoZoom: boolean;  // cámara sigue las fases de query
   labels: boolean;    // labels flotantes con %
   dof: boolean;       // depth of field
@@ -58,7 +57,7 @@ export const useBrainStore = create<BrainState>((set) => ({
   queryNeuron: null,
   rays: [],
   labels3d: [],
-  settings: { anim: true, alwaysLit: false, style: "organico", autoZoom: true, labels: true, dof: false, bloom: true },
+  settings: { anim: true, alwaysLit: false, autoZoom: true, labels: true, dof: false, bloom: true },
   stats: INITIAL_STATS,
   resetToken: 0,
   lastAnswer: null,

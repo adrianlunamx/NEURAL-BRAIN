@@ -57,18 +57,12 @@ function smoothstep(e0: number, e1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** Signed distance to the brain surface without its folds (< 0 inside); mirrors sdf_brain_coarse(). */
+/** Signed distance to the brain surface (< 0 inside). */
 export function sdfBrain(p: V3): number {
   let cer = sdEllipsoid(p, CEREBRUM.center, CEREBRUM.radii);
   cer = Math.max(cer, -1.4 - p[1]);
   cer += 0.45 * (1 - smoothstep(0, 0.35, Math.abs(p[2]))) * smoothstep(0.6, 1.8, p[1]);
   cer = smin(cer, sdEllipsoid(p, FRONTAL_BULGE.center, FRONTAL_BULGE.radii), 0.9);
-  // v3: temporal lobes under the lateral fissure (the folds are too small to matter here)
-  const temporal = Math.min(
-    sdEllipsoid(p, [1.0, -1.3, 1.45], [2.7, 1.2, 1.15]),
-    sdEllipsoid(p, [1.0, -1.3, -1.45], [2.7, 1.2, 1.15]),
-  );
-  cer = smin(cer, temporal, 0.55);
   const d = smin(cer, sdEllipsoid(p, CEREBELLUM.center, CEREBELLUM.radii), 1.3);
   return smin(d, sdEllipsoid(p, BRAINSTEM.center, BRAINSTEM.radii), 0.7);
 }

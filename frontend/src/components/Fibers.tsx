@@ -35,9 +35,6 @@ void main() {
 }
 `;
 
-const NEON_FIBER = new THREE.Color("#cfe6ff");
-const GOLD_FIBER = new THREE.Color("#ffae5a");
-
 export function Fibers() {
   const matRef = useRef<THREE.ShaderMaterial>(null!);
   const geom = useMemo(() => new THREE.BufferGeometry(), []);
@@ -89,8 +86,6 @@ export function Fibers() {
   useFrame(({ clock }) => {
     material.uniforms.uTime.value = clock.elapsedTime;
     material.uniforms.uArousal.value = arousal.level;
-    // organic style: golden filaments
-    (material.uniforms.uColor.value as THREE.Color).copy(NEON_FIBER).lerp(GOLD_FIBER, arousal.warm);
   });
 
   return (

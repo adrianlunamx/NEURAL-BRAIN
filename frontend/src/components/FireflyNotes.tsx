@@ -54,7 +54,6 @@ const vertex = /* glsl */ `
   uniform float uScale;
   uniform float uTime;
   uniform float uArousal;
-  uniform float uWarm;
   varying vec3 vColor;
   varying float vGlow;
   varying float vEmphasis;
@@ -77,7 +76,7 @@ const vertex = /* glsl */ `
       * (1.0 + pulse * 1.2 + max(emphasis - 1.0, 0.0) * 0.5)
       * uScale / -mv.z;
     gl_PointSize = min(px, 96.0); // cap: no giant blobs when zoomed in close
-    vColor = mix(color, vec3(1.0, 0.8, 0.52), 0.45 * uWarm);  // organic: warmer fireflies
+    vColor = color;
     vGlow = glow;
     vEmphasis = emphasis;
     vPulse = pulse;
@@ -163,7 +162,7 @@ export function FireflyNotes() {
   const material = useMemo(() => new THREE.ShaderMaterial({
     vertexShader: vertex,
     fragmentShader: fragment,
-    uniforms: { uScale: { value: 700 }, uTime: { value: 0 }, uArousal: { value: 0 }, uWarm: { value: 1 } },
+    uniforms: { uScale: { value: 700 }, uTime: { value: 0 }, uArousal: { value: 0 } },
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -220,7 +219,6 @@ export function FireflyNotes() {
     const pul = geometry.getAttribute("pulse") as THREE.BufferAttribute;
     const awk = geometry.getAttribute("awake") as THREE.BufferAttribute;
     material.uniforms.uArousal.value = arousal.level;
-    material.uniforms.uWarm.value = arousal.warm;
     const decay = Math.exp(-delta * 0.8);
     notes.forEach((n, i) => {
       const p = livePositions.get(n.id);

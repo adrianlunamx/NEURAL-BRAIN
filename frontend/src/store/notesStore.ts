@@ -103,7 +103,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   setShowProblems: (showProblems) => set({ showProblems }),
   setActivity: (activity) => set({ activity }),
   pushActivity: (e) => set((s) => {
-    if (!s.activity || s.activity.events.some((x) => x.id === e.id)) return {};  // already in the snapshot
+    if (!s.activity) return {};
     const usage = { ...s.activity.note_usage };
     if (e.note_id) usage[e.note_id] = (usage[e.note_id] ?? 0) + 1;
     return { activity: { ...s.activity, events: [e, ...s.activity.events].slice(0, 60), note_usage: usage } };

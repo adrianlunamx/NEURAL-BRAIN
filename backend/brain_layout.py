@@ -33,7 +33,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_LAYOUT = HERE / "brain_layout.json"
-LAYOUT_VERSION = 3
+LAYOUT_VERSION = 2
 
 # Sampling box that fully contains the brain (also used by GraphStore.add_neuron).
 # v2.1: x max raised from 5.5 to 6.0 for the rounded frontal pole.
@@ -85,33 +85,8 @@ BLEND_CEREBELLUM_K = 1.3    # v2.1: no visible gap between cerebellum and occipi
 BLEND_BULGE_K = 0.9         # v2.1: round frontal pole, not lumpy
 
 
-# v3: temporal lobes under the lateral (Sylvian) fissure, cortical folds, cerebellar folia
-TEMPORAL = [{"center": (1.0, -1.3, s * 1.45), "radii": (2.7, 1.2, 1.15)} for s in (1, -1)]
-SYLVIAN_A, SYLVIAN_B = np.array([3.3, -0.55]), np.array([-1.2, 0.55])  # fissure line in x-y (lateral view)
-SULCUS_DEPTH = 0.1       # geometric depth of the sulci (the shader adds the fine relief)
-SULCUS_WIDTH = 0.35      # thinner = sharper grooves
-FOLD_SCALE = 3.4         # higher = more, narrower gyri
-FISSURE_DEPTH = 0.3
-
-
-def gyri_field(p: np.ndarray) -> np.ndarray:
-    """Winding sulcus pattern: 1 on the groove lines, 0 on the gyri crowns.
-
-    Zero set of a strongly domain-warped stripe field -> long, winding, roughly
-    parallel grooves (like the folds of a cortex, not closed cells). Mirrored in
-    GLSL by BrainShell (organic style) for the fold shading; keep both in sync.
-    """
-    x, y, z = (p * FOLD_SCALE).T
-    phase = (2.4 * (0.55 * x + 0.83 * y)
-             + 2.6 * np.sin(0.65 * y + 0.35 * z)
-             + 2.2 * np.sin(0.55 * z + 0.85 * x)
-             + 1.4 * np.sin(1.15 * x - 0.55 * y + 0.4 * z)
-             + 0.5 * np.sin(1.9 * y + 1.3 * z))
-    return np.exp(-(np.sin(phase) / SULCUS_WIDTH) ** 2)
-
-
-def sdf_brain_coarse(points: np.ndarray) -> np.ndarray:
-    """The brain without its small folds (mirrored by sdfBrain() in the frontend)."""
+def sdf_brain(points: np.ndarray) -> np.ndarray:
+    """Signed distance to the whole brain surface. `points` is (n, 3); < 0 means inside."""
     p = np.atleast_2d(np.asarray(points, dtype=float))
 
     d_cer = _sd_ellipsoid(p, **CEREBRUM)
@@ -122,36 +97,8 @@ def sdf_brain_coarse(points: np.ndarray) -> np.ndarray:
     d_cer = d_cer + 0.45 * near_midline * upper
     d_cer = _smin(d_cer, _sd_ellipsoid(p, **FRONTAL_BULGE), BLEND_BULGE_K)
 
-    temporal = np.minimum(*(_sd_ellipsoid(p, **t) for t in TEMPORAL))
-    d_cer = _smin(d_cer, temporal, 0.55)
-
     d = _smin(d_cer, _sd_ellipsoid(p, **CEREBELLUM), BLEND_CEREBELLUM_K)
     return _smin(d, _sd_ellipsoid(p, **BRAINSTEM), SMOOTH_K)
-
-
-def sdf_brain(points: np.ndarray) -> np.ndarray:
-    """Signed distance to the whole brain surface. `points` is (n, 3); < 0 means inside.
-
-    Coarse shape + lateral (Sylvian) fissure + winding sulci on the cortex +
-    horizontal folia on the cerebellum. The folds only carve the outer ~0.3
-    units, so they read on the shell without moving the volume.
-    """
-    p = np.atleast_2d(np.asarray(points, dtype=float))
-    d = sdf_brain_coarse(p)
-    near_surface = np.clip(1.0 + d / 0.45, 0.0, 1.0)  # 1 on the surface, 0 deep inside
-
-    in_cbl = _sd_ellipsoid(p, **CEREBELLUM) < 0.25
-    # lateral fissure: distance (x-y) to the slanted fissure line, on the sides only
-    ab = SYLVIAN_B - SYLVIAN_A
-    ap = p[:, :2] - SYLVIAN_A
-    t = np.clip((ap @ ab) / (ab @ ab), 0.0, 1.0)
-    dist = np.linalg.norm(ap - t[:, None] * ab, axis=1)
-    lateral = _smoothstep(0.9, 1.7, np.abs(p[:, 2]))
-    fissure = FISSURE_DEPTH * np.exp(-(dist / 0.16) ** 2) * lateral
-
-    sulci = SULCUS_DEPTH * gyri_field(p) * ~in_cbl
-    folia = 0.06 * (0.5 + 0.5 * np.cos(p[:, 1] * 16.0 + 0.4 * np.sin(p[:, 0] * 3.0))) * in_cbl
-    return d + (fissure + sulci + folia) * near_surface
 
 
 def classify_regions(points: np.ndarray) -> np.ndarray:
@@ -210,15 +157,13 @@ def sample_region(region: str, k: int, rng: np.random.Generator, max_batches: in
 
 def build_layout(n: int, seed: int) -> Dict:
     rng = np.random.default_rng(seed)
-    # classify the rounded positions that get stored, so a reload never flips a
-    # neuron that sits right on a region boundary
-    pts = np.round(sample_inside(n, rng), 3)
+    pts = sample_inside(n, rng)
     regions = classify_regions(pts)
     return {
         "version": LAYOUT_VERSION,
         "seed": seed,
         "count": int(n),
-        "positions": pts.tolist(),
+        "positions": np.round(pts, 3).tolist(),
         "regions": regions.tolist(),
     }
 
@@ -238,7 +183,7 @@ def validate_layout(layout: Dict) -> Dict[str, int]:
 # Shell mesh (translucent brain surface for the frontend)
 # ---------------------------------------------------------------------------
 
-def build_shell(resolution: float = 0.1, offset: float = 0.03) -> Dict:
+def build_shell(resolution: float = 0.19, offset: float = 0.08) -> Dict:
     """Marching cubes over the SDF. Requires scikit-image."""
     from skimage.measure import marching_cubes
 
