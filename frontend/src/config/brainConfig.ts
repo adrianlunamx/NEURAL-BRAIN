@@ -1,9 +1,17 @@
-// v2 anatomical brain: shared constants for the shell, region labels and camera.
+// v2.1 anatomical brain: shared constants for the shell, region labels and camera.
 // Mirrors backend/brain_layout.py (lateral view: x = front(+)/back(-), y = up, z = right/left).
 import { Region } from "../types";
 
+type V3 = [number, number, number];
+
+/** Sampling box that contains the whole brain (v2.1: x max 6.0 for the rounded frontal pole). */
+export const BRAIN_BOUNDS: { min: V3; max: V3 } = {
+  min: [-6.0, -5.0, -3.5],
+  max: [6.0, 4.0, 3.5],
+};
+
 /** Visual centre of the brain; camera target for HOME. */
-export const BRAIN_CENTER: [number, number, number] = [-0.3, 0.2, 0];
+export const BRAIN_CENTER: V3 = [0.4, -0.2, 0];
 
 /** Height of the magenta query neuron in INPUT (backend uses the same value). */
 export const QUERY_SPAWN_Y = 9.5;
@@ -19,12 +27,50 @@ export const SHELL_STYLE = {
   rimPower: 2.6,
 };
 
-/** Where each region label floats (just outside the surface, readable from the side). */
-export const REGION_LABELS: { region: Region; text: string; position: [number, number, number] }[] = [
+/**
+ * Where each region label floats (just outside the surface, readable from the side).
+ * `anchor`, when present, draws a guide line from the label to that point of the region.
+ */
+export const REGION_LABELS: { region: Region; text: string; position: V3; anchor?: V3 }[] = [
   { region: "frontal", text: "FRONTAL", position: [3.6, 3.9, 0.6] },
-  { region: "parietal", text: "PARIETAL", position: [-0.6, 4.6, 0.6] },
-  { region: "occipital", text: "OCCIPITAL", position: [-5.2, 2.8, 0.6] },
-  { region: "temporal", text: "TEMPORAL", position: [2.2, -3.4, 2.6] },
-  { region: "hippocampus", text: "HIPOCAMPO", position: [-0.4, -1.0, 3.3] },
-  { region: "cerebellum", text: "CEREBELO", position: [-3.8, -5.0, 1.2] },
+  { region: "parietal", text: "PARIETAL", position: [-0.6, 4.3, 0.6] },
+  { region: "occipital", text: "OCCIPITAL", position: [-4.6, 2.4, 0.6] },
+  { region: "temporal", text: "TEMPORAL", position: [2.4, -2.5, 2.6] },
+  // v2.1: below-centre and in front, clear of the yellow SYNTHESIZE core, with a long guide line.
+  { region: "hippocampus", text: "HIPOCAMPO", position: [-0.6, -3.8, 2.4], anchor: [-0.2, -0.8, 0.6] },
+  { region: "cerebellum", text: "CEREBELO", position: [-3.9, -4.4, 1.2] },
 ];
+
+// --------------------------------------------------------------- region SDF
+// Same primitives and priorities as classify_regions() in backend/brain_layout.py — keep in sync.
+const CEREBELLUM = { center: [-2.6, -2.6, 0] as V3, radii: [1.7, 1.4, 1.5] as V3 };
+const HIPPOCAMPUS = { center: [-0.2, -0.8, 0] as V3, radii: [1.3, 0.9, 1.0] as V3 };
+
+/** Approximate signed distance to an axis-aligned ellipsoid (< 0 inside). */
+function sdEllipsoid(p: V3, center: V3, radii: V3): number {
+  let k0 = 0;
+  let k1 = 0;
+  for (let i = 0; i < 3; i++) {
+    const q = (p[i] - center[i]) / radii[i];
+    k0 += q * q;
+    k1 += (q / radii[i]) ** 2;
+  }
+  k0 = Math.sqrt(k0);
+  k1 = Math.sqrt(k1);
+  return (k0 * (k0 - 1)) / Math.max(k1, 1e-12);
+}
+
+/**
+ * Region of a point inside the brain.
+ * Priority: cerebellum > frontal > occipital > parietal > temporal > hippocampus > fallback.
+ */
+export function classifyRegion(p: V3): Region {
+  const [x, y, z] = p;
+  if (sdEllipsoid(p, CEREBELLUM.center, CEREBELLUM.radii) < 0) return "cerebellum";
+  if (x > 1.8) return "frontal";
+  if (x < -1.6) return "occipital";
+  if (y > 1.2) return "parietal";
+  if (Math.abs(z) > 1.2) return "temporal";
+  if (sdEllipsoid(p, HIPPOCAMPUS.center, HIPPOCAMPUS.radii) < 0) return "hippocampus";
+  return y < 0 ? "temporal" : "parietal";
+}
