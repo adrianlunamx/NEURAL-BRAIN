@@ -3,7 +3,11 @@ uvicorn[standard]>=0.30
 pydantic>=2.7,<3.0
 networkx>=3.2,<4.0
 chromadb>=0.5
-sentence-transformers>=3.0
+# embeddings through ONNX Runtime (no PyTorch); chromadb already depends on these.
+# For a model without an ONNX export: pip install -r requirements-torch.txt
+onnxruntime>=1.17
+tokenizers>=0.15
+huggingface-hub>=0.23
 GitPython>=3.1,<4.0
 sse-starlette>=2.1,<3.0
 python-dotenv>=1.0,<2.0

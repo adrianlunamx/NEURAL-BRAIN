@@ -1,0 +1,4 @@
+# Optional PyTorch stack, only for EMBEDDING_BACKEND=sentence-transformers
+# (an EMBEDDING_MODEL without an ONNX export). The default model runs on ONNX.
+-r requirements.txt
+sentence-transformers>=3.0
