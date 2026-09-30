@@ -14,6 +14,7 @@ import { NotesAnimator, FireflyNotes } from "./FireflyNotes";
 import { LinksLayer } from "./LinksLayer";
 import { AgentMarkers, markerPositions } from "./AgentMarkers";
 import { PillDecollider } from "./pillLayout";
+import { CameraProbe } from "./CameraReadout";
 import { livePositions, useNotesStore } from "../store/notesStore";
 import { ArousalDriver } from "../store/arousal";
 import { BRAIN_CENTER } from "../config/brainConfig";
@@ -160,6 +161,7 @@ export function BrainCanvas() {
         <FireflyNotes />
         <AgentMarkers />
         <PillDecollider />
+        <CameraProbe />
       </Suspense>
       {/* text (fonts) loads in its own boundary: it can never blank the neurons */}
       <SceneErrorBoundary>

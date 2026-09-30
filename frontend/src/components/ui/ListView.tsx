@@ -30,9 +30,9 @@ export function ListView() {
   }, [view, hiddenGroups, hiddenTypes, search, usage, sort, desc]);
 
   const color = new Map(view?.groups.map((g) => [g.name, g.color]) ?? []);
-  const head = (key: SortKey, label: string) => (
-    <th onClick={() => { if (sort === key) setDesc(!desc); else { setSort(key); setDesc(key !== "title" && key !== "group"); } }}>
-      {label}{sort === key ? (desc ? " ↓" : " ↑") : ""}
+  const head = (key: SortKey, label: string, num = false) => (
+    <th className={`${sort === key ? "sorted" : ""}${num ? " num" : ""}`} onClick={() => { if (sort === key) setDesc(!desc); else { setSort(key); setDesc(key !== "title" && key !== "group"); } }}>
+      {label}{sort === key ? (desc ? " ▾" : " ▴") : ""}
     </th>
   );
 
@@ -42,7 +42,7 @@ export function ListView() {
         <thead>
           <tr>
             {head("title", "Nota")}{head("group", "Grupo")}{head("type", "Tipo")}
-            {head("degree", "Conexiones")}{head("uso", "Uso")}{head("created_at", "Creada")}
+            {head("degree", "Conexiones", true)}{head("uso", "Uso", true)}{head("created_at", "Creada")}
           </tr>
         </thead>
         <tbody>
@@ -53,7 +53,7 @@ export function ListView() {
               <td>{TYPE_LABELS[n.type]}</td>
               <td className="num">{n.degree}</td>
               <td className="num">{usage?.[n.id] ?? 0}</td>
-              <td className="muted">{n.created_at.slice(0, 16).replace("T", " ")}</td>
+              <td className="date">{n.created_at.slice(0, 16).replace("T", " ")}</td>
             </tr>
           ))}
         </tbody>

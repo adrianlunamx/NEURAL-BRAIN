@@ -1,6 +1,7 @@
 import { useBrainStore } from "../../store/brainStore";
 import { useNotesStore, visibleNotes } from "../../store/notesStore";
-import { LINK_LABELS, TYPE_LABELS, TypeIcon } from "./common";
+import { LINK_LABELS, pad, TYPE_LABELS, TypeIcon } from "./common";
+import { setCameraReadoutEl } from "../CameraReadout";
 import { NowPanel, Waveform } from "./NowPanel";
 
 /** Grafo | Lista and Grupos | Uso segmented controls. */
@@ -30,8 +31,8 @@ function GraphControls() {
   const setFollow = useNotesStore((s) => s.setFollow);
   return (
     <div className="graph-controls">
-      <button onClick={() => cameraCommand("in")} title="Acercar">+</button>
-      <button onClick={() => cameraCommand("out")} title="Alejar">−</button>
+      <button className="sq" onClick={() => cameraCommand("in")} title="Acercar">+</button>
+      <button className="sq" onClick={() => cameraCommand("out")} title="Alejar">−</button>
       <button onClick={() => cameraCommand("fit")}>Encuadrar</button>
       <button onClick={relayout}>Reacomodar</button>
       <button className={follow ? "on" : ""} onClick={() => setFollow(!follow)} title="La cámara sigue al agente activo">
@@ -51,7 +52,7 @@ function Counter() {
   const links = view?.links.filter((l) => !hiddenLinks.has(l.type) && ids.has(l.source) && ids.has(l.target)).length ?? 0;
   return (
     <div className="counter">
-      {notes.length} de {view?.notes.length ?? 0} notas · {links} conexiones
+      VIS <b>{pad(notes.length, 3)}</b>/{pad(view?.notes.length ?? 0, 3)} NOTAS · <b>{pad(links, 3)}</b> CONEX
     </div>
   );
 }
@@ -70,26 +71,37 @@ function NoteCard() {
   const problems = view.problems.filter((p) => p.note_id === note.id);
   return (
     <div className="note-card">
-      <button className="close" onClick={() => select(null)}>×</button>
-      <div className="nc-title"><TypeIcon type={note.type} color={group?.color} size={14} /> {note.title}</div>
-      <div className="nc-meta">
-        <span className="chip" style={{ borderColor: group?.color, color: group?.color }}>{note.group}</span>
-        <span className="chip">{TYPE_LABELS[note.type]}</span>
-        {note.path && <span className="muted mono">{note.path}</span>}
+      <div className="panel-cap">
+        <span className="cap">Nota · {TYPE_LABELS[note.type]}</span>
+        <button className="close" onClick={() => select(null)} title="Cerrar (Esc)">[×]</button>
       </div>
-      <p className="nc-text">{note.text}</p>
-      {!!note.tags.length && <div className="nc-tags">{note.tags.map((t) => <span key={t}>#{t}</span>)}</div>}
-      <div className="muted small">Usada {usage?.[note.id] ?? 0} veces por los agentes · {links.length} conexiones</div>
-      {problems.map((p, i) => <div key={i} className="nc-problem">⚠ {p.detail}</div>)}
-      <div className="nc-links">
-        {links.slice(0, 14).map((l, i) => {
-          const other = byId.get(l.source === note.id ? l.target : l.source);
-          return other && (
-            <button key={i} onClick={() => select(other.id)}>
-              <span className="lt">{LINK_LABELS[l.type]}</span> {other.title}
-            </button>
-          );
-        })}
+      <div className="nc-body">
+        <div className="nc-title"><TypeIcon type={note.type} color={group?.color} size={12} /> {note.title}</div>
+        <div className="nc-meta">
+          <span className="cap">Grupo</span>
+          <span className="v" style={{ color: group?.color }}>{note.group}</span>
+          {note.path && <><span className="cap">Ruta</span><span className="v">{note.path}</span></>}
+          <span className="cap">Uso</span>
+          <span className="v">{pad(usage?.[note.id] ?? 0)} lecturas de agentes</span>
+          <span className="cap">Grado</span>
+          <span className="v">{pad(links.length)} conexiones</span>
+        </div>
+        <p className="nc-text">{note.text}</p>
+        {!!note.tags.length && <div className="nc-tags">{note.tags.map((t) => <span key={t}>#{t}</span>)}</div>}
+        {problems.map((p, i) => <div key={i} className="nc-problem">! {p.detail}</div>)}
+        {!!links.length && (
+          <div className="nc-links">
+            <span className="cap">Conexiones</span>
+            {links.slice(0, 14).map((l, i) => {
+              const other = byId.get(l.source === note.id ? l.target : l.source);
+              return other && (
+                <button key={i} onClick={() => select(other.id)}>
+                  <span className="lt">{LINK_LABELS[l.type]}</span> <span>{other.title}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -103,11 +115,14 @@ function AnswerCard() {
   if (!answer) return null;
   return (
     <div className="answer-card">
-      <button className="close" onClick={() => setLastAnswer(null)}>×</button>
-      <div className="aq">{answer.query}</div>
-      <div className="aa">{answer.text || (phase === "IDLE" ? "…" : `pensando… (${phase})`)}</div>
+      <div className="panel-cap">
+        <span className="cap">Respuesta · {phase === "IDLE" ? "lista" : phase.toLowerCase()}</span>
+        <button className="close" onClick={() => setLastAnswer(null)} title="Cerrar">[×]</button>
+      </div>
+      <div className="aq">&gt; {answer.query}</div>
+      <div className="aa">{answer.text || (phase === "IDLE" ? "…" : "pensando…")}</div>
       {answer.text && (
-        <div className="muted small">{answer.source === "claude" ? "respuesta de Claude" : "resumen extractivo (sin API key)"}</div>
+        <div className="src cap">{answer.source === "claude" ? "fuente: Claude" : "fuente: resumen extractivo (sin API key)"}</div>
       )}
     </div>
   );
@@ -119,6 +134,12 @@ export function GraphOverlay() {
   if (mode === "lista") return <ViewTabs />;
   return (
     <>
+      <div className="frame" aria-hidden>
+        <div className="ruler-x" /><div className="ruler-y" />
+        <div className="mark tr" /><div className="mark br" />
+        <div className="reticle" />
+      </div>
+      <div className="cam-readout" ref={setCameraReadoutEl} />
       <ViewTabs />
       <AnswerCard />
       <NoteCard />

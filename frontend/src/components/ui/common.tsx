@@ -49,6 +49,17 @@ export function ago(ts: number, now: number): string {
   return `hace ${Math.floor(s / 3600)} h`;
 }
 
+/** Zero-padded integer, as an instrument reads it (7 -> "07"). */
+export function pad(n: number, width = 2): string {
+  return String(Math.max(0, Math.round(n))).padStart(width, "0");
+}
+
+/** Wall-clock time of a unix timestamp (seconds), HH:MM:SS. */
+export function clockTime(ts: number): string {
+  const d = new Date(ts * 1000);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 export function basename(path: string): string {
   const parts = path.split(/[\\/]/);
   return parts[parts.length - 1] || path;
