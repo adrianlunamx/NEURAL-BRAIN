@@ -116,6 +116,15 @@ class IngestResponse(BaseModel):
     count: int
 
 
+class IngestBatchRequest(BaseModel):
+    notes: List[IngestRequest] = Field(..., min_length=1, max_length=200)
+
+
+class IngestBatchResponse(BaseModel):
+    notes: List[IngestResponse]
+    count: int
+
+
 class QueryRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=2000)
     top_k: int = Field(default=8, ge=1, le=20)

@@ -16,8 +16,8 @@ from .llm import Synthesizer
 from .models import (
     BrainEvent, FiberDTO, GitCommitRequest, GitCommitResponse, GitLogEntry,
     GitRestoreRequest, GitRestoreResponse, GraphEdgeDTO, GraphNodeDTO,
-    GraphResponse, HookEventRequest, HookEventResponse, IngestRequest,
-    IngestResponse, Phase, QueryHit, QueryRequest, QueryResponse,
+    GraphResponse, HookEventRequest, HookEventResponse, IngestBatchRequest,
+    IngestBatchResponse, IngestRequest, IngestResponse, Phase, QueryHit, QueryRequest, QueryResponse,
     Region, RegionInfo, StatsResponse,
 )
 from .notes import build_notes_view, note_index, normalize_type, region_for_group, resolve_note
@@ -81,40 +81,62 @@ async def health() -> dict:
 
 
 # ------------------------------------------------------------------ ingest
-@router.post("/ingest", response_model=IngestResponse)
-async def ingest(req: IngestRequest) -> IngestResponse:
-    """Split text into chunks, embed each, create one neuron per chunk."""
-    chunks = [c.strip() for c in req.text.replace("\n", " ").split(". ") if c.strip()]
-    chunks = chunks or [req.text.strip()]
-    # Cap chunks so one request cannot flood the brain.
-    chunks = chunks[:12]
-    title = (req.title or req.label or "").strip() or None
-    region = req.region_hint or region_for_group(graph, req.group)
-    note_meta = {
-        "source": req.source,
-        "note_id": f"note_{uuid.uuid4().hex[:8]}",
-        "title": title or chunks[0][:60],
-        "group": (req.group or "").strip() or "Memoria",
-        "note_type": normalize_type(req.note_type),
-        "tags": ",".join(t.strip() for t in req.tags if t.strip()),
-        "path": (req.path or "").strip(),
-    }
-    neuron_ids = []
-    for i, chunk in enumerate(chunks):
-        label = title or chunk[:60]
-        meta = {**note_meta, "chunk": i}
-        if i == 0:
-            meta["text"] = req.text[:4000]
-        nid, _recycled = graph.add_neuron(label=label, region=region, source="ingest", metadata=meta)
-        await asyncio.to_thread(vector.add_neuron, nid, chunk, {"region": region.value, "source": req.source})
+async def _ingest_notes(reqs: list[IngestRequest]) -> list[IngestResponse]:
+    """Split each note into chunks and create one neuron per chunk. All chunks of
+    all notes are embedded in a single model call."""
+    staged: list[tuple[str, str, dict]] = []  # (neuron id, chunk, vector metadata)
+    responses: list[IngestResponse] = []
+    note_ids: list[str] = []
+    for req in reqs:
+        chunks = [c.strip() for c in req.text.replace("\n", " ").split(". ") if c.strip()]
+        chunks = chunks or [req.text.strip()]
+        # Cap chunks so one request cannot flood the brain.
+        chunks = chunks[:12]
+        title = (req.title or req.label or "").strip() or None
+        region = req.region_hint or region_for_group(graph, req.group)
+        note_meta = {
+            "source": req.source,
+            "note_id": f"note_{uuid.uuid4().hex[:8]}",
+            "title": title or chunks[0][:60],
+            "group": (req.group or "").strip() or "Memoria",
+            "note_type": normalize_type(req.note_type),
+            "tags": ",".join(t.strip() for t in req.tags if t.strip()),
+            "path": (req.path or "").strip(),
+        }
+        neuron_ids = []
+        for i, chunk in enumerate(chunks):
+            label = title or chunk[:60]
+            meta = {**note_meta, "chunk": i}
+            if i == 0:
+                meta["text"] = req.text[:4000]
+            nid, _recycled = graph.add_neuron(label=label, region=region, source="ingest", metadata=meta)
+            staged.append((nid, chunk, {"region": region.value, "source": req.source}))
+            neuron_ids.append(nid)
+        note_ids.append(note_meta["note_id"])
+        responses.append(IngestResponse(neuron_ids=neuron_ids, count=len(neuron_ids)))
+
+    await asyncio.to_thread(vector.add_neurons, staged)
+    for nid, _chunk, _meta in staged:
         graph.graph.nodes[nid]["embedding_ref"] = nid
         await bus.publish("neuron_added", _neuron_added_payload(nid))
         await bus.publish("neuron_activated", {"id": nid, "amount": 0.8})
-        neuron_ids.append(nid)
     graph.notes_version += 1  # embeddings are stored now: similarity links can be computed
-    await bus.publish("notes_changed", {"note_id": note_meta["note_id"]})
+    await bus.publish("notes_changed", {"note_id": note_ids[-1]} if len(note_ids) == 1 else {})
     await bus.publish("stats", graph.stats())
-    return IngestResponse(neuron_ids=neuron_ids, count=len(neuron_ids))
+    return responses
+
+
+@router.post("/ingest", response_model=IngestResponse)
+async def ingest(req: IngestRequest) -> IngestResponse:
+    """Split text into chunks, embed each, create one neuron per chunk."""
+    return (await _ingest_notes([req]))[0]
+
+
+@router.post("/ingest/batch", response_model=IngestBatchResponse)
+async def ingest_batch(req: IngestBatchRequest) -> IngestBatchResponse:
+    """Several notes in one request (same rules as /ingest, embedded together)."""
+    notes = await _ingest_notes(req.notes)
+    return IngestBatchResponse(notes=notes, count=sum(n.count for n in notes))
 
 
 # ------------------------------------------------------------------ notes
