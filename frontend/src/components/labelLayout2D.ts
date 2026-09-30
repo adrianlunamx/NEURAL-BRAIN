@@ -108,6 +108,26 @@ interface PlacedRect {
   h: number;
 }
 
+function overlaps(cx: number, cy: number, w: number, h: number, q: PlacedRect): boolean {
+  return Math.abs(cx - q.cx) < (w + q.w) / 2 && Math.abs(cy - q.cy) < (h + q.h) / 2;
+}
+
+/**
+ * Move a box along screen Y in direction `dir` (+1 down, -1 up) until it
+ * overlaps no placed box. Movement is monotonic, so it always terminates.
+ * Returns the free centre Y, or null after MAX_PASSES.
+ */
+function pushClear(
+  cx: number, cy: number, w: number, h: number, dir: number, placed: PlacedRect[],
+): number | null {
+  for (let pass = 0; pass < MAX_PASSES; pass++) {
+    const hit = placed.find((q) => overlaps(cx, cy, w, h, q));
+    if (!hit) return cy;
+    cy = hit.cy + dir * ((h + hit.h) / 2 + SEPARATION_PX);
+  }
+  return null;
+}
+
 /**
  * Greedy 2D de-collision.
  *
@@ -152,24 +172,23 @@ export function resolveLabelCollisions(
     let cx = it.sx;
     let cy = it.sy;
     if (!it.behind) {
-      let pass = 0;
-      let collided = true;
-      while (collided && pass++ < MAX_PASSES) {
-        collided = false;
-        for (const q of placed) {
-          const overlapX = Math.abs(cx - q.cx) < (it.width + q.w) / 2;
-          const overlapY = Math.abs(cy - q.cy) < (it.height + q.h) / 2;
-          if (overlapX && overlapY) {
-            // Push away from the collider's centre (screen y grows downward).
-            const dir = cy === q.cy ? 1 : Math.sign(cy - q.cy);
-            cy = q.cy + dir * ((it.height + q.h) / 2 + SEPARATION_PX);
-            collided = true;
-          }
-        }
-      }
-      // Keep the label inside the viewport.
-      cy = Math.min(Math.max(cy, it.height / 2), viewport.height - it.height / 2);
+      // Keep the label inside the viewport horizontally.
       cx = Math.min(Math.max(cx, it.width / 2), viewport.width - it.width / 2);
+      const first = placed.find((q) => overlaps(cx, it.sy, it.width, it.height, q));
+      if (first) {
+        // Push monotonically in ONE direction (away from the first collider).
+        // Alternating directions made a label caught between two placed ones
+        // bounce between them and stay overlapped once MAX_PASSES ran out.
+        const dir = it.sy === first.cy ? 1 : Math.sign(it.sy - first.cy);
+        const a = pushClear(cx, it.sy, it.width, it.height, dir, placed);
+        const b = pushClear(cx, it.sy, it.width, it.height, -dir, placed);
+        const fits = (y: number | null) =>
+          y !== null && y >= it.height / 2 && y <= viewport.height - it.height / 2;
+        // prefer the away direction; fall back to the other if it leaves the screen
+        const pick = fits(a) ? a : fits(b) ? b : (a ?? b);
+        if (pick !== null) cy = pick;
+      }
+      cy = Math.min(Math.max(cy, it.height / 2), viewport.height - it.height / 2);
     }
     placed.push({ id: it.id, cx, cy, w: it.width, h: it.height });
   }
