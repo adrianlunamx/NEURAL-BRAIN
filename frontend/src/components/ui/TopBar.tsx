@@ -1,0 +1,65 @@
+import { useBrainStore } from "../../store/brainStore";
+import { useNotesStore } from "../../store/notesStore";
+import { PROBLEM_LABELS } from "./common";
+
+function formatGenerated(iso?: string): string {
+  if (!iso) return "cargando…";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `Generado el ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export function TopBar() {
+  const view = useNotesStore((s) => s.view);
+  const theme = useNotesStore((s) => s.theme);
+  const toggleTheme = useNotesStore((s) => s.toggleTheme);
+  const showProblems = useNotesStore((s) => s.showProblems);
+  const setShowProblems = useNotesStore((s) => s.setShowProblems);
+  const select = useNotesStore((s) => s.select);
+  const anim = useBrainStore((s) => s.settings.anim);
+  const updateSettings = useBrainStore((s) => s.updateSettings);
+  const problems = view?.problems ?? [];
+  const titleOf = new Map(view?.notes.map((n) => [n.id, n.title]) ?? []);
+
+  return (
+    <header className="topbar">
+      <div className="brand">
+        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
+          <path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z" fill="#ffd27a" />
+          <circle cx="19" cy="4.5" r="1.6" fill="#ff4d8d" /><circle cx="4.5" cy="19" r="1.3" fill="#29d3e6" />
+        </svg>
+        <div>
+          <div className="brand-title">Cerebro de Claude</div>
+          <div className="brand-sub">{formatGenerated(view?.generated_at)}</div>
+        </div>
+      </div>
+      <div className="top-stats">
+        <span><b>{view?.notes.length ?? 0}</b> notas</span>
+        <span><b>{view?.links.length ?? 0}</b> conexiones</span>
+        <button className={`problems${problems.length ? " has" : ""}`} onClick={() => setShowProblems(!showProblems)}>
+          {problems.length} {problems.length === 1 ? "problema" : "problemas"}
+        </button>
+        <label className="switch" title="Animaciones (A)">
+          <input type="checkbox" checked={anim} onChange={() => updateSettings({ anim: !anim })} />
+          <span className="knob" /> Animaciones
+        </label>
+        <button className="icon-btn" title={theme === "dark" ? "Tema claro" : "Tema oscuro"} onClick={toggleTheme}>
+          {theme === "dark" ? "☀" : "☾"}
+        </button>
+      </div>
+      {showProblems && (
+        <div className="problems-pop">
+          {problems.length === 0 && <div className="muted">Sin problemas 🎉</div>}
+          {problems.map((p, i) => (
+            <button key={i} className="problem-row" onClick={() => { select(p.note_id); setShowProblems(false); }}>
+              <span className={`pk pk-${p.kind}`}>{PROBLEM_LABELS[p.kind] ?? p.kind}</span>
+              <span className="pt">{titleOf.get(p.note_id) ?? p.note_id}</span>
+              <span className="pd">{p.detail}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </header>
+  );
+}

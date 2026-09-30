@@ -89,6 +89,8 @@ class GraphStore:
         # converges with NO eager updates on the hot activate() path.
         self._recycle_heap: List[Tuple[str, str]] = []
         self._recycle_heap_seed_only: bool = True
+        # bumps whenever notes (ingest/query neurons) change; the /notes view caches on it
+        self.notes_version: int = 0
 
     # ------------------------------------------------------------------
     # Layout helpers
@@ -284,6 +286,8 @@ class GraphStore:
                 self.graph.add_node(neuron_id, **node.model_dump())
                 self.render_order.append(neuron_id)
             self.region_index[region].append(neuron_id)
+            if source in ("ingest", "query"):
+                self.notes_version += 1
             # wire to 2 same-region neighbors so it is never isolated
             for target in self._sample_neighbors(region, neuron_id, 2):
                 edge = SynapseEdge(source=neuron_id, target=target,
@@ -513,6 +517,7 @@ class GraphStore:
             self.render_order.extend(n for n in graph.nodes if n not in ordered)
             self.event_count = int(data.get("event_count", 0))
             self._invalidate_recycle_heap()
+            self.notes_version += 1
             if int(data.get("version", 1)) < SNAPSHOT_VERSION:
                 self._relayout_v1()
 

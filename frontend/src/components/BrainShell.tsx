@@ -93,10 +93,22 @@ export function BrainShell() {
   );
   useEffect(() => () => material.dispose(), [material]);
 
+  // the cortex surface drawn as a fine dotted skin (the shell vertices as points)
+  const dots = useMemo(() => new THREE.PointsMaterial({
+    color: "#8fa8ff", size: 0.02, sizeAttenuation: true, transparent: true, opacity: 0.2,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  }), []);
+  useEffect(() => () => dots.dispose(), [dots]);
+
   useFrame(({ clock }) => {
     material.uniforms.uTime.value = clock.elapsedTime;
   });
 
   if (!geometry) return null;
-  return <mesh geometry={geometry} material={material} renderOrder={1} raycast={() => null} />;
+  return (
+    <group>
+      <mesh geometry={geometry} material={material} renderOrder={1} raycast={() => null} />
+      <points geometry={geometry} material={dots} raycast={() => null} />
+    </group>
+  );
 }

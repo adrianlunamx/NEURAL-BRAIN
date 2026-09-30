@@ -126,7 +126,7 @@ const EXPLOSION_RAYS = 28;
 
 function SynthesizePhase({ center, hits }: { center: V3; hits: QueryHit[] }) {
   const { scale } = useSpring({
-    scale: 3.2,
+    scale: 1.7,
     from: { scale: 0.2 },
     config: { tension: 120, friction: 12 },
   });

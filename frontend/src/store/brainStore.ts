@@ -103,7 +103,7 @@ export const useBrainStore = create<BrainState>((set) => ({
 
 // ---------------------------------------------------------------------------
 // Activation bus: 60fps path that bypasses React re-renders.
-// NeuronField subscribes; useBrainSocket emits on SSE neuron_activated.
+// NeuronDust subscribes; useBrainSocket emits on SSE neuron_activated.
 // ---------------------------------------------------------------------------
 type ActivationListener = (id: string, amount: number) => void;
 const activationListeners = new Set<ActivationListener>();
@@ -119,7 +119,7 @@ export function emitActivation(id: string, amount: number): void {
 
 // ---------------------------------------------------------------------------
 // Upsert bus: a neuron was added or recycled (new label/region/position/color)
-// after the initial load. NeuronField rewrites that single instance.
+// after the initial load. NeuronDust rewrites that single point.
 // ---------------------------------------------------------------------------
 type UpsertListener = (n: NeuronData) => void;
 const upsertListeners = new Set<UpsertListener>();

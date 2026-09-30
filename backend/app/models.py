@@ -94,11 +94,21 @@ class BrainEvent(BaseModel):
 # REST request / response schemas
 # ---------------------------------------------------------------------------
 
+NOTE_TYPES = ("instrucciones", "indice", "usuario", "feedback", "proyecto",
+              "referencia", "documento", "handoff")
+
+
 class IngestRequest(BaseModel):
+    """One memory (note). Its text is chunked into neurons that share a note id."""
     text: str = Field(..., min_length=1, max_length=20000)
     source: str = Field(default="manual", description="manual | file | web | note")
     region_hint: Optional[Region] = Field(default=None)
-    label: Optional[str] = Field(default=None)
+    label: Optional[str] = Field(default=None, description="Note title (alias of `title`)")
+    title: Optional[str] = Field(default=None, max_length=200)
+    group: Optional[str] = Field(default=None, max_length=80, description="Project/group, e.g. 'Web · Handoffs'")
+    note_type: Optional[str] = Field(default=None, description=f"one of {', '.join(NOTE_TYPES)}")
+    tags: List[str] = Field(default_factory=list)
+    path: Optional[str] = Field(default=None, max_length=400, description="Where the note lives, e.g. 'web/handoffs/login.md'")
 
 
 class IngestResponse(BaseModel):
@@ -151,18 +161,28 @@ class GraphResponse(BaseModel):
 
 
 class HookEventRequest(BaseModel):
-    hook_type: str = Field(..., description="file_read | file_search | file_edit | agent_launch | command")
+    hook_type: str = Field(..., description="file_read | file_search | file_edit | agent_launch | command | session")
     tool_name: str = Field(default="")
     summary: str = Field(default="", description="Short human summary, e.g. 'Read: src/auth.py'")
     cwd: str = Field(default="")
     extra: Dict[str, Any] = Field(default_factory=dict)
+    # live activity (all optional: old hook handlers keep working)
+    event: str = Field(default="PostToolUse", description="Claude Code hook event name")
+    session_id: str = Field(default="")
+    agent_id: str = Field(default="", description="subagent id; empty = main agent")
+    agent_type: str = Field(default="")
+    action: str = Field(default="", description="busca | lee | edita | crea | git | commit | compila | prueba | script | agente | espera | piensa | fin")
+    target: str = Field(default="", description="file, pattern or command the action is about")
+    lines_added: int = Field(default=0, ge=0)
+    lines_removed: int = Field(default=0, ge=0)
 
 
 class HookEventResponse(BaseModel):
     ok: bool
-    neuron_id: str
-    region: Region
+    neuron_id: str = Field(default="", description="empty for session events (no neuron)")
+    region: Optional[Region] = None
     recycled: bool = False
+    note_id: Optional[str] = None
 
 
 class RegionInfo(BaseModel):

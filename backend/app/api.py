@@ -8,6 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
+from .activity import ActivityStore
 from .events import EventBus
 from .git_store import GitStore
 from .graph_store import LOD_LEVELS, GraphStore
@@ -19,6 +20,7 @@ from .models import (
     IngestResponse, Phase, QueryHit, QueryRequest, QueryResponse,
     Region, RegionInfo, StatsResponse,
 )
+from .notes import build_notes_view, note_index, normalize_type, region_for_group, resolve_note
 from .query_engine import knowledge_hits, run_query_phases
 from .vector_store import VectorStore
 
@@ -30,13 +32,29 @@ graph: GraphStore
 vector: VectorStore
 gitstore: GitStore
 synthesizer: Optional[Synthesizer] = None
+activity: ActivityStore = ActivityStore()
 _query_task: Optional[asyncio.Task] = None
+_demo_task: Optional[asyncio.Task] = None
+_notes_cache: dict = {"version": -1, "view": None, "index": {}}
 
 
 def init(_bus: EventBus, _graph: GraphStore, _vector: VectorStore, _git: GitStore,
-         _synth: Optional[Synthesizer] = None) -> None:
-    global bus, graph, vector, gitstore, synthesizer
+         _synth: Optional[Synthesizer] = None, _activity: Optional[ActivityStore] = None) -> None:
+    global bus, graph, vector, gitstore, synthesizer, activity
     bus, graph, vector, gitstore, synthesizer = _bus, _graph, _vector, _git, _synth
+    activity = _activity or ActivityStore()
+    _notes_cache.update(version=-1, view=None, index={})
+
+
+def notes_view() -> dict:
+    """GET /notes payload, rebuilt only when notes changed."""
+    if _notes_cache["version"] != graph.notes_version or _notes_cache["view"] is None:
+        version = graph.notes_version
+        view = build_notes_view(graph, vector.get_embeddings)
+        _notes_cache.update(version=version, view=view,
+                            index=note_index([{"title": n["title"], "path": n["path"], "id": n["id"]}
+                                              for n in view["notes"]]))
+    return _notes_cache["view"]
 
 
 def _neuron_added_payload(nid: str) -> dict:
@@ -70,21 +88,40 @@ async def ingest(req: IngestRequest) -> IngestResponse:
     chunks = chunks or [req.text.strip()]
     # Cap chunks so one request cannot flood the brain.
     chunks = chunks[:12]
+    title = (req.title or req.label or "").strip() or None
+    region = req.region_hint or region_for_group(graph, req.group)
+    note_meta = {
+        "source": req.source,
+        "note_id": f"note_{uuid.uuid4().hex[:8]}",
+        "title": title or chunks[0][:60],
+        "group": (req.group or "").strip() or "Memoria",
+        "note_type": normalize_type(req.note_type),
+        "tags": ",".join(t.strip() for t in req.tags if t.strip()),
+        "path": (req.path or "").strip(),
+    }
     neuron_ids = []
     for i, chunk in enumerate(chunks):
-        label = req.label or chunk[:60]
-        region = req.region_hint or Region.HIPPOCAMPUS
-        nid, _recycled = graph.add_neuron(
-            label=label, region=region, source="ingest",
-            metadata={"source": req.source, "chunk": i},
-        )
+        label = title or chunk[:60]
+        meta = {**note_meta, "chunk": i}
+        if i == 0:
+            meta["text"] = req.text[:4000]
+        nid, _recycled = graph.add_neuron(label=label, region=region, source="ingest", metadata=meta)
         await asyncio.to_thread(vector.add_neuron, nid, chunk, {"region": region.value, "source": req.source})
         graph.graph.nodes[nid]["embedding_ref"] = nid
         await bus.publish("neuron_added", _neuron_added_payload(nid))
         await bus.publish("neuron_activated", {"id": nid, "amount": 0.8})
         neuron_ids.append(nid)
+    graph.notes_version += 1  # embeddings are stored now: similarity links can be computed
+    await bus.publish("notes_changed", {"note_id": note_meta["note_id"]})
     await bus.publish("stats", graph.stats())
     return IngestResponse(neuron_ids=neuron_ids, count=len(neuron_ids))
+
+
+# ------------------------------------------------------------------ notes
+@router.get("/notes")
+async def get_notes() -> dict:
+    """Notes (memories) with groups, types, typed connections and problems."""
+    return await asyncio.to_thread(notes_view)
 
 
 # ------------------------------------------------------------------ query
@@ -159,23 +196,71 @@ HOOK_REGION = {
 }
 
 
-@router.post("/hooks/event", response_model=HookEventResponse)
-async def hook_event(req: HookEventRequest) -> HookEventResponse:
+SESSION_EVENTS = {"UserPromptSubmit", "Notification", "Stop", "SubagentStart", "SubagentStop"}
+
+
+async def record_hook(req: HookEventRequest) -> HookEventResponse:
+    """A Claude Code hook event: live activity + (for tool calls) a neuron that fires."""
+    target = req.target or req.summary.split(": ", 1)[-1]
+    note_id = None
+    if req.event not in SESSION_EVENTS:
+        await asyncio.to_thread(notes_view)
+        note_id = resolve_note(_notes_cache["index"], target)
+    item = activity.record(
+        event=req.event, session_id=req.session_id, cwd=req.cwd, agent_id=req.agent_id,
+        agent_type=req.agent_type, tool_name=req.tool_name, hook_type=req.hook_type,
+        action=req.action, target=target, summary=req.summary,
+        lines_added=req.lines_added, lines_removed=req.lines_removed, note_id=note_id,
+    )
+    await bus.publish("activity", item)
+    if req.event in SESSION_EVENTS:
+        return HookEventResponse(ok=True, note_id=note_id)
+
     region = HOOK_REGION.get(req.hook_type, Region.FRONTAL)
     label = req.summary or f"{req.hook_type}: {req.tool_name}"
     extra = {k: v for k, v in req.extra.items() if isinstance(v, (str, int, float, bool))}
     nid, recycled = graph.add_neuron(
         label=label[:80], region=region, source="hook",
-        metadata={"hook_type": req.hook_type, "tool": req.tool_name, "cwd": req.cwd, **extra},
+        metadata={"hook_type": req.hook_type, "tool": req.tool_name, "cwd": req.cwd,
+                  "action": item["action"], **extra},
     )
     # publish first: the neuron lights up without waiting for the embedding
     graph.activate(nid, 1.0)
     await bus.publish("neuron_added", _neuron_added_payload(nid))
     await bus.publish("neuron_activated", {"id": nid, "amount": 1.0})
+    if note_id:
+        view = _notes_cache["view"] or {}
+        note = next((n for n in view.get("notes", []) if n["id"] == note_id), None)
+        for anchor in (note or {}).get("neuron_ids", [])[:3]:
+            graph.activate(anchor, 1.0)
+            await bus.publish("neuron_activated", {"id": anchor, "amount": 1.0})
     await asyncio.to_thread(vector.attach_label, nid, label, {"hook_type": req.hook_type})
     graph.graph.nodes[nid]["embedding_ref"] = nid
     await bus.publish("stats", graph.stats())
-    return HookEventResponse(ok=True, neuron_id=nid, region=region, recycled=recycled)
+    return HookEventResponse(ok=True, neuron_id=nid, region=region, recycled=recycled, note_id=note_id)
+
+
+@router.post("/hooks/event", response_model=HookEventResponse)
+async def hook_event(req: HookEventRequest) -> HookEventResponse:
+    return await record_hook(req)
+
+
+# ------------------------------------------------------------------ activity
+@router.get("/activity")
+async def get_activity() -> dict:
+    """Sessions, subagents, recent actions, files edited in the last 30 min, event rate."""
+    return activity.snapshot()
+
+
+@router.post("/activity/demo")
+async def activity_demo() -> dict:
+    """"Probar": replay a short simulated Claude Code session through the hook pipeline."""
+    global _demo_task
+    if _demo_task is not None and not _demo_task.done():
+        return {"ok": True, "running": True}
+    from .demo import run_demo
+    _demo_task = asyncio.create_task(run_demo(record_hook))
+    return {"ok": True, "running": False}
 
 
 # ------------------------------------------------------------------ regions / stats
@@ -207,5 +292,6 @@ async def git_restore(req: GitRestoreRequest) -> GitRestoreResponse:
     if not ok:
         raise HTTPException(status_code=404, detail="commit not found")
     await bus.publish("graph_reloaded", graph.stats())
+    await bus.publish("notes_changed", {})
     await bus.publish("phase", {"phase": Phase.IDLE.value})
     return GitRestoreResponse(ok=True, commit_hash=req.commit_hash)

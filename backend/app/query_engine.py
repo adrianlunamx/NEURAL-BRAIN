@@ -161,6 +161,8 @@ async def _run(text, top_k, bus, graph, vector, synthesizer, query_id, timings) 
         "region": Region.HIPPOCAMPUS.value, "position": [float(c) for c in node["position"]],
         "color": REGION_COLORS[Region.HIPPOCAMPUS], "size": float(node["size"]),
     })
+    graph.notes_version += 1  # the question is a note ("Preguntas") linked to its answers
+    await bus.publish("notes_changed", {"note_id": mem_id})
     await bus.publish("phase", {"phase": Phase.IDLE.value, "query_id": query_id})
     await bus.publish("stats", graph.stats())
     return query_id

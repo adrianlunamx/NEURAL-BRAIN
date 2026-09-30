@@ -131,6 +131,18 @@ class VectorStore:
         hits.sort(key=lambda h: h["score"], reverse=True)
         return hits
 
+    def get_embeddings(self, neuron_ids) -> Dict[str, np.ndarray]:
+        """Stored embedding of each id that has one."""
+        ids = list(dict.fromkeys(neuron_ids))
+        if not ids:
+            return {}
+        with self.lock:
+            result = self.collection.get(ids=ids, include=["embeddings"])
+        embs = result.get("embeddings")
+        if embs is None:
+            return {}
+        return {nid: np.asarray(e, dtype=np.float32) for nid, e in zip(result.get("ids", []), embs)}
+
     def remove(self, neuron_id: str) -> None:
         with self.lock:
             self.collection.delete(ids=[neuron_id])

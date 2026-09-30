@@ -22,8 +22,8 @@ export const BRAIN_SHELL_URL = "/brain_shell.json";
 export const SHELL_STYLE = {
   color: "#7fb4ff",
   rimColor: "#b9d4ff",
-  opacity: 0.05,      // face-on transparency
-  rimOpacity: 0.32,   // fresnel edge
+  opacity: 0.025,     // face-on transparency
+  rimOpacity: 0.22,   // fresnel edge
   rimPower: 2.6,
 };
 
@@ -40,6 +40,32 @@ export const REGION_LABELS: { region: Region; text: string; position: V3; anchor
   { region: "hippocampus", text: "HIPOCAMPO", position: [-0.6, -3.8, 2.4], anchor: [-0.2, -0.8, 0.6] },
   { region: "cerebellum", text: "CEREBELO", position: [-3.9, -4.4, 1.2] },
 ];
+
+// --------------------------------------------------------------- brain SDF
+// Same primitives as sdf_brain() in backend/brain_layout.py (v2.1) — keep in sync.
+const CEREBRUM = { center: [0.5, 0.3, 0] as V3, radii: [4.2, 3.4, 2.8] as V3 };
+const FRONTAL_BULGE = { center: [3.6, 0.4, 0] as V3, radii: [1.8, 2.5, 2.3] as V3 };
+const BRAINSTEM = { center: [-1.6, -3.2, 0] as V3, radii: [0.7, 1.4, 0.7] as V3 };
+
+function smin(a: number, b: number, k: number): number {
+  const h = Math.min(1, Math.max(0, 0.5 + (0.5 * (b - a)) / k));
+  return b + (a - b) * h - k * h * (1 - h);
+}
+
+function smoothstep(e0: number, e1: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+}
+
+/** Signed distance to the brain surface (< 0 inside). */
+export function sdfBrain(p: V3): number {
+  let cer = sdEllipsoid(p, CEREBRUM.center, CEREBRUM.radii);
+  cer = Math.max(cer, -1.4 - p[1]);
+  cer += 0.45 * (1 - smoothstep(0, 0.35, Math.abs(p[2]))) * smoothstep(0.6, 1.8, p[1]);
+  cer = smin(cer, sdEllipsoid(p, FRONTAL_BULGE.center, FRONTAL_BULGE.radii), 0.9);
+  const d = smin(cer, sdEllipsoid(p, CEREBELLUM.center, CEREBELLUM.radii), 1.3);
+  return smin(d, sdEllipsoid(p, BRAINSTEM.center, BRAINSTEM.radii), 0.7);
+}
 
 // --------------------------------------------------------------- region SDF
 // Same primitives and priorities as classify_regions() in backend/brain_layout.py — keep in sync.

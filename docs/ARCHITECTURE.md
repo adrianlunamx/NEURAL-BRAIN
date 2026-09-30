@@ -21,7 +21,7 @@ flowchart TB
     end
     subgraph FE["frontend — React + R3F :5173"]
         SOCK["useBrainSocket.ts"] --> STORE["brainStore.ts (zustand)\n+ activation / upsert bus"]
-        STORE --> CANVAS["BrainCanvas: NeuronField (2×19k instanced) · BrainShell · RegionLabels · Fibers · QueryAnimation"]
+        STORE --> CANVAS["BrainCanvas: NeuronDust (19k points) · BrainShell · Fibers · NotesLayer + LinksLayer (D3) · AgentMarkers · FloatingLabels · QueryAnimation"]
     end
     HOOKS -->|POST /hooks/event| API
     API <--> GS & VS
@@ -43,17 +43,23 @@ flowchart TB
 | `git_store.py` | `graph.json` en un repo Git local; commits con el CLI de `git` (sobrevive a Ctrl+C); auto-commit cada 25 eventos / 60 s; `restore(hash)` recarga y vuelve a commitear. |
 | `events.py` | Bus de eventos con **una cola por suscriptor SSE** (el spec usaba una cola compartida que repartía los eventos entre pestañas). |
 | `query_engine.py` | Máquina de fases con los timings del spec (×`PHASE_TIME_SCALE`). Claude empieza a escribir durante CONNECT y su respuesta viaja en `SYNTHESIZE.summary`; sin key, resumen extractivo. Las preguntas se guardan como neuronas del hipocampo, pero no se devuelven como fuentes. |
-| `api.py` | Endpoints del spec + `GET /fibers`. |
+| `notes.py` | Vista de **notas**: una por memoria ingerida (sus frases comparten `note_id`) o pregunta. Grupos con color y ancla dentro de una región; conexiones tipadas (`wiki`, `enlace`, `indice`, `responde`, `mencion`, `carpeta`, `cadena`, `comparte`, `sugerida`, `parecida`) y problemas (enlace roto, huérfana, duplicado). `resolve_note` asocia un archivo o patrón de una acción con su nota. |
+| `activity.py` | Actividad en vivo de Claude Code: sesiones (trabajando / pensando / esperando / en reposo), subagentes numerados (un `Task` lanzado se une a su `SubagentStart`), acción de cada evento, archivos editados con +/− en la última media hora, eventos por segundo y uso por nota. |
+| `demo.py` | Sesión simulada (botón **Probar**) que pasa por el mismo camino que los hooks. |
+| `api.py` | Endpoints del spec + `GET /fibers`, `GET /notes` (cacheada hasta que cambian las notas), `GET /activity`, `POST /activity/demo`. |
 | `main.py` | Carga el último `graph.json` si existe; si no, siembra y hace el commit inicial, en un hilo para no bloquear el event loop (uvicorn igualmente no acepta peticiones hasta que termina el arranque). Escucha en `127.0.0.1` por defecto: la API no tiene auth (`API_HOST` para cambiarlo). Rutas relativas a `backend/`. |
 
 ## Frontend (`frontend/src`)
 
 | Pieza | Rendimiento |
 |---|---|
-| `NeuronField` | Dos `InstancedMesh` de 19k (base low-poly + halo aditivo con `GlowMaterial`). Matrices y colores se escriben una vez; las activaciones viven en un `Float32Array` fuera de React y sólo los índices sucios suben a la GPU. |
+| `NeuronDust` | Las 19k neuronas como un único `THREE.Points` (polvo aditivo con titileo). Las activaciones viven en un atributo que decae fuera de React. |
+| `noteLayout.ts` | `d3-force-3d`: enlaces (fuerza según el tipo), repulsión, colisión, atracción al ancla del grupo y una fuerza que devuelve cada nota al interior del cerebro por el gradiente del SDF (`sdfBrain`, espejo de Python). Conserva la posición de las notas que ya existían; `Reacomodar` usa otra semilla. |
+| `NotesLayer` / `LinksLayer` | Un `Points` con la forma de cada tipo dibujada en el shader y un `LineSegments` con curvas de Bézier dobladas hacia el centro (efecto de haz), trazo continuo/discontinuo/punteado y pulso viajero. `NotesAnimator` interpola las posiciones hacia el layout (`livePositions`, fuera de React). |
+| `AgentMarkers` | Un marcador por agente activo que viaja a la nota que tocó y un arco desde el punto de su sesión. |
 | `brainStore` | zustand con selectores finos; `onActivation` y `onNeuronUpsert` son buses fuera de React (60 fps sin re-render). `graphVersion` fuerza a reconstruir instancias tras un restore. |
-| `useLOD` | `mesh.count` según la distancia de la cámara al centro del cerebro, así el pan no cambia el nivel (≤12 → 19k, ≤18 → 12k, ≤26 → 5k, resto 1k), suavizado y nunca mayor que las instancias cargadas. |
 | `Fibers` | Un único `LineSegments` con shader de pulso viajero. |
 | `QueryAnimation` | Una escena por fase; textos con fuente Inter local en un error boundary propio. |
-| `FloatingLabels` | Único renderer de textos flotantes: los 6 nombres de región y los `%` de CONNECT se de-colisionan juntos en espacio de pantalla (`labelLayout2D.ts`), al cambiar de fase y cada 250 ms mientras la cámara se mueve. |
-| `useBrainSocket` | SSE; si la conexión se cayó (backend reiniciado), al reabrirse recarga `/graph`. |
+| `FloatingLabels` | Único renderer de textos flotantes: nombres de grupo, títulos de las notas más conectadas (o de la búsqueda) y los `%` de una consulta, de-colisionados juntos en espacio de pantalla (`labelLayout2D.ts`) cada 300 ms. |
+| `useBrainSocket` | SSE: `notes_changed` → `/notes`, `activity` → panel + pulso de la nota + `/activity`; si la conexión se cayó, al reabrirse recarga todo. Los hits de una consulta se redirigen a la posición D3 de su nota. |
+| `ui/` | Barra superior, barra lateral con filtros, Grafo/Lista, Grupos/Uso, panel *Ahora*, onda de actividad, controles y ficha de nota. |

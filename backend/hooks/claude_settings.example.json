@@ -1,44 +1,69 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Task|Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
-        "matcher": "Read",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
             "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
           }
         ]
-      },
+      }
+    ],
+    "UserPromptSubmit": [
       {
-        "matcher": "Grep|Glob",
         "hooks": [
           {
             "type": "command",
             "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
           }
         ]
-      },
+      }
+    ],
+    "Notification": [
       {
-        "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
             "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
           }
         ]
-      },
+      }
+    ],
+    "Stop": [
       {
-        "matcher": "Task",
         "hooks": [
           {
             "type": "command",
             "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
           }
         ]
-      },
+      }
+    ],
+    "SubagentStart": [
       {
-        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
         "hooks": [
           {
             "type": "command",

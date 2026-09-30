@@ -1,7 +1,31 @@
 import { useEffect } from "react";
 import { API_URL } from "../config";
-import { GraphEdgeDTO, GraphNodeDTO, NeuronData, Phase, PhasePayload } from "../types";
+import {
+  ActivityEvent, ActivitySnapshot, GraphEdgeDTO, GraphNodeDTO, NeuronData, NotesView, Phase, PhasePayload,
+} from "../types";
 import { emitActivation, useBrainStore } from "../store/brainStore";
+import { actionColor, emitNotePulse, livePositions, useNotesStore } from "../store/notesStore";
+
+/**
+ * Query hits are neurons; the graph draws their notes where the D3 layout put
+ * them. Point the query rays and labels at the note, not at the raw neuron.
+ */
+function notePositions(payload: PhasePayload): PhasePayload {
+  const view = useNotesStore.getState().view;
+  if (!view) return payload;
+  const noteOf = new Map<string, string>();
+  for (const n of view.notes) for (const nid of n.neuron_ids) noteOf.set(nid, n.id);
+  const at = (id: string, fallback: [number, number, number]): [number, number, number] => {
+    const noteId = noteOf.get(id);
+    const p = noteId ? livePositions.get(noteId) : undefined;
+    return p ? [p.x, p.y, p.z] : fallback;
+  };
+  return {
+    ...payload,
+    hits: payload.hits?.map((h) => ({ ...h, position: at(h.id, h.position) })),
+    targets: payload.targets?.map((t) => ({ ...t, position: at(t.id, t.position) })),
+  };
+}
 
 /** Connects to SSE, translates events into store actions, loads the graph. */
 export function useBrainSocket() {
@@ -10,7 +34,7 @@ export function useBrainSocket() {
     const get = useBrainStore.getState;
 
     const onPhase = (e: MessageEvent) => {
-      const payload = JSON.parse(e.data).payload as PhasePayload;
+      const payload = notePositions(JSON.parse(e.data).payload as PhasePayload);
       const phase = (payload.phase ?? "IDLE") as Phase;
       if (phase === "SYNTHESIZE" && payload.summary) {
         const query = get().phasePayload?.text ?? get().lastAnswer?.query ?? "";
@@ -60,22 +84,47 @@ export function useBrainSocket() {
       void loadGraph();
     };
 
+    // notes change in bursts (one ingest = several neurons): refetch once
+    let notesTimer: ReturnType<typeof setTimeout> | undefined;
+    const onNotesChanged = () => {
+      clearTimeout(notesTimer);
+      notesTimer = setTimeout(() => void loadNotes(), 300);
+    };
+
+    let activityTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleActivity = () => {
+      if (activityTimer) return;
+      activityTimer = setTimeout(() => { activityTimer = undefined; void loadActivity(); }, 400);
+    };
+    const onActivity = (e: MessageEvent) => {
+      const item = JSON.parse(e.data).payload as ActivityEvent;
+      useNotesStore.getState().pushActivity(item);
+      if (item.note_id) emitNotePulse(item.note_id, actionColor(item.action));
+      scheduleActivity();
+    };
+
     es.addEventListener("phase", onPhase as EventListener);
     es.addEventListener("neuron_activated", onNeuronActivated as EventListener);
     es.addEventListener("neuron_added", onNeuronAdded as EventListener);
     es.addEventListener("edge_added", (() => {}) as EventListener); // reserved
     es.addEventListener("stats", onStats as EventListener);
     es.addEventListener("graph_reloaded", onGraphReloaded as EventListener);
+    es.addEventListener("notes_changed", onNotesChanged as EventListener);
+    es.addEventListener("activity", onActivity as EventListener);
     // EventSource reconnects on its own; after a lost connection (backend
     // restarted) the graph may have changed, so resync it once reopened.
     let connectionLost = false;
     es.onerror = () => {
       connectionLost = true;
+      useNotesStore.getState().setConnected(false);
     };
     es.onopen = () => {
+      useNotesStore.getState().setConnected(true);
       if (!connectionLost) return;
       connectionLost = false;
       void loadGraph();
+      void loadNotes();
+      void loadActivity();
     };
 
     async function loadGraph() {
@@ -100,8 +149,35 @@ export function useBrainSocket() {
         console.error("[brain] failed to load graph", err);
       }
     }
-    void loadGraph();
+    async function loadNotes() {
+      try {
+        const res = await fetch(`${API_URL}/notes`);
+        useNotesStore.getState().setView(await res.json() as NotesView);
+      } catch (err) {
+        console.error("[brain] failed to load notes", err);
+      }
+    }
 
-    return () => es.close();
+    async function loadActivity() {
+      try {
+        const res = await fetch(`${API_URL}/activity`);
+        useNotesStore.getState().setActivity(await res.json() as ActivitySnapshot);
+      } catch {
+        // backend down: the SSE error handler already shows "sin conexión"
+      }
+    }
+
+    void loadGraph();
+    void loadNotes();
+    void loadActivity();
+    // statuses age ("en reposo", "hace 3 min") even without new events
+    const poll = setInterval(() => void loadActivity(), 5000);
+
+    return () => {
+      es.close();
+      clearInterval(poll);
+      clearTimeout(notesTimer);
+      clearTimeout(activityTimer);
+    };
   }, []);
 }
