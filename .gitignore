@@ -11,7 +11,8 @@ venv/
 .env
 *.env.local
 
-# Runtime storage (vector DB + graph snapshot)
+# Runtime storage (vector DB + graph snapshot) and run.ps1's process ids
+.neural-brain.pids
 backend/storage/
 backend/data/
 
