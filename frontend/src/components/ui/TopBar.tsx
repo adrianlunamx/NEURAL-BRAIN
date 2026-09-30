@@ -26,13 +26,10 @@ export function TopBar() {
   return (
     <header className="topbar">
       <div className="brand">
-        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
-          <path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z" fill="#ffd27a" />
-          <circle cx="19" cy="4.5" r="1.6" fill="#ff4d8d" /><circle cx="4.5" cy="19" r="1.3" fill="#29d3e6" />
-        </svg>
+        <img src="/favicon.svg" width="30" height="30" alt="Neural Brain" />
         <div>
-          <div className="brand-title">Cerebro de Claude</div>
-          <div className="brand-sub">{formatGenerated(view?.generated_at)}</div>
+          <div className="brand-title">Cerebro de tu agente</div>
+          <div className="brand-sub">Neural Brain · {formatGenerated(view?.generated_at)}</div>
         </div>
       </div>
       <div className="top-stats">

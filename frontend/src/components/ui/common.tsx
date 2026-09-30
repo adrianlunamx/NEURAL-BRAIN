@@ -53,3 +53,21 @@ export function basename(path: string): string {
   const parts = path.split(/[\\/]/);
   return parts[parts.length - 1] || path;
 }
+
+/** Which coding agent a session comes from (sent by each hook adapter). */
+const CLIENTS: Record<string, { label: string; color: string }> = {
+  "claude-code": { label: "Claude Code", color: "#e5886a" },
+  cursor: { label: "Cursor", color: "#b9c4ff" },
+  codex: { label: "Codex", color: "#3ecf9b" },
+  gemini: { label: "Gemini CLI", color: "#6aa6ff" },
+  aider: { label: "Aider", color: "#ffd24d" },
+};
+
+export function clientInfo(client: string): { label: string; color: string } {
+  return CLIENTS[client] ?? { label: client ? client[0].toUpperCase() + client.slice(1) : "Agente", color: "#c7a6ff" };
+}
+
+export function ClientBadge({ client }: { client: string }) {
+  const c = clientInfo(client);
+  return <span className="client-badge" style={{ color: c.color, borderColor: c.color }}>{c.label}</span>;
+}

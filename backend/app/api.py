@@ -200,7 +200,7 @@ SESSION_EVENTS = {"UserPromptSubmit", "Notification", "Stop", "SubagentStart", "
 
 
 async def record_hook(req: HookEventRequest) -> HookEventResponse:
-    """A Claude Code hook event: live activity + (for tool calls) a neuron that fires."""
+    """An agent hook event: live activity + (for tool calls) a neuron that fires."""
     target = req.target or req.summary.split(": ", 1)[-1]
     note_id = None
     if req.event not in SESSION_EVENTS:
@@ -211,6 +211,7 @@ async def record_hook(req: HookEventRequest) -> HookEventResponse:
         agent_type=req.agent_type, tool_name=req.tool_name, hook_type=req.hook_type,
         action=req.action, target=target, summary=req.summary,
         lines_added=req.lines_added, lines_removed=req.lines_removed, note_id=note_id,
+        client=req.client,
     )
     await bus.publish("activity", item)
     if req.event in SESSION_EVENTS:
@@ -222,7 +223,7 @@ async def record_hook(req: HookEventRequest) -> HookEventResponse:
     nid, recycled = graph.add_neuron(
         label=label[:80], region=region, source="hook",
         metadata={"hook_type": req.hook_type, "tool": req.tool_name, "cwd": req.cwd,
-                  "action": item["action"], **extra},
+                  "action": item["action"], "client": req.client, **extra},
     )
     # publish first: the neuron lights up without waiting for the embedding
     graph.activate(nid, 1.0)

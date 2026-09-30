@@ -57,6 +57,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   z-index: 30;
 }
 .brand { display: flex; align-items: center; gap: 10px; }
+.brand img { display: block; border-radius: 7px; }
+.client-badge { font-size: 9.5px; font-weight: 600; letter-spacing: 0.04em; border: 1px solid; border-radius: 99px; padding: 0 6px; margin: 0 2px; opacity: 0.9; }
 .brand-title { font-weight: 700; font-size: 14px; }
 .brand-sub { font-size: 10.5px; color: var(--muted); }
 .top-stats { display: flex; align-items: center; gap: 16px; font-size: 12px; color: var(--muted); }

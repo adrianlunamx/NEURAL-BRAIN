@@ -164,6 +164,7 @@ export interface ActivityEvent {
   event: string;
   session_id: string;
   project: string;
+  client: string;
   agent: string;
   agent_label: string;
   agent_num: number;
@@ -192,6 +193,7 @@ export interface AgentInfo {
 export interface SessionInfo {
   id: string;
   project: string;
+  client: string;
   status: "trabajando" | "pensando" | "esperando" | "en reposo";
   detail: string;
   last_at: number;

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [{ "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/cursor_hook.py" }],
+    "beforeReadFile": [{ "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/cursor_hook.py" }],
+    "afterFileEdit": [{ "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/cursor_hook.py" }],
+    "beforeShellExecution": [{ "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/cursor_hook.py" }],
+    "beforeMCPExecution": [{ "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/cursor_hook.py" }],
+    "stop": [{ "command": "NEURAL_BRAIN_URL=http://localhost:8000 python3 /ruta/a/neural-brain/backend/hooks/cursor_hook.py" }]
+  }
+}
