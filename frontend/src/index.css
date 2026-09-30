@@ -61,7 +61,7 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--accent); ou
 
 .app { display: flex; flex-direction: column; width: 100%; height: 100%; background: var(--bg); color: var(--text); }
 .body { flex: 1; display: flex; min-height: 0; }
-.stage { position: relative; flex: 1; min-width: 0; background: #060817; }
+.stage { position: relative; flex: 1; min-width: 0; background: #07090a; }
 .stage canvas { display: block; }
 
 /* small uppercase mono captions used everywhere */
