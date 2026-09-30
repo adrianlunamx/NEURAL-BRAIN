@@ -8,7 +8,11 @@ import { livePositions, searchMatches, useNotesStore, visibleNotes } from "../st
 import { arousal, lit } from "../store/arousal";
 import { resolveLabelCollisions, ScreenLabelInput, V3 } from "./labelLayout2D";
 
-const GROUP_FONT = 0.22;
+const GROUP_FONT = 0.1;       // region/group names: tiny, one warm tone...
+const GROUP_COLOR = "#f0d6b4";
+const SCALE_REF = 14;         // camera distance at which labels have their nominal size
+const GROUP_NEAR = 9;         // ...and only when the camera comes this close (world units)
+const GROUP_FADE = 2;         // fade-in distance before GROUP_NEAR
 const NOTE_FONT = 0.16;
 const HIT_FONT = 0.34;
 const RELAYOUT_MS = 300;
@@ -19,21 +23,32 @@ type Kind = "group" | "note" | "focus" | "hit";
 interface LabelSpec extends ScreenLabelInput {
   kind: Kind;
   color: string;
+  /** 0..1 visibility (group names fade in as the camera approaches) */
+  fade?: number;
 }
 
 interface Placed extends LabelSpec {
   at: V3;
 }
 
+/**
+ * World-size text grows as the camera approaches; shrink it with the distance
+ * so labels keep a near-constant size on screen instead of turning into stickers.
+ */
+function screenScale(camera: THREE.Camera, p: THREE.Vector3 | V3): number {
+  const d = Array.isArray(p) ? camera.position.distanceTo(new THREE.Vector3(...p)) : camera.position.distanceTo(p);
+  return Math.min(1, Math.max(0.25, d / SCALE_REF));
+}
+
 /** Collects every label that should be on screen right now (positions are live). */
-function collectSpecs(): LabelSpec[] {
+function collectSpecs(camera: THREE.Camera): LabelSpec[] {
   const ns = useNotesStore.getState();
   const bs = useBrainStore.getState();
   const specs: LabelSpec[] = [];
   const view = ns.view;
   if (view) {
     const notes = visibleNotes(ns);
-    // group names over the centre of their notes, in small caps
+    // group names over the centre of their notes (only up close, see GROUP_NEAR)
     const sums = new Map<string, { p: THREE.Vector3; n: number }>();
     for (const n of notes) {
       const p = livePositions.get(n.id);
@@ -47,9 +62,13 @@ function collectSpecs(): LabelSpec[] {
       const s = sums.get(g.name);
       if (!s) continue;
       const c = s.p.divideScalar(s.n);
+      c.y += 0.45;
+      const dist = camera.position.distanceTo(c);
+      if (dist > GROUP_NEAR) continue;  // far away: the brain speaks for itself
       specs.push({
-        id: `group:${g.name}`, kind: "group", world: [c.x, c.y + 0.75, c.z],
-        text: g.name.toUpperCase(), fontSize: GROUP_FONT, priority: 3, color: g.color,
+        id: `group:${g.name}`, kind: "group", world: [c.x, c.y, c.z],
+        text: g.name, fontSize: GROUP_FONT * screenScale(camera, c), priority: 0.5, color: GROUP_COLOR,
+        fade: Math.min(1, (GROUP_NEAR - dist) / GROUP_FADE),
       });
     }
     // note titles: the most connected ones, search matches, hovered / selected
@@ -63,10 +82,11 @@ function collectSpecs(): LabelSpec[] {
       const p = livePositions.get(n.id);
       if (!p) continue;
       const isFocus = focus.has(n.id);
+      const k = screenScale(camera, p);
       specs.push({
         id: `note:${n.id}`, kind: isFocus ? "focus" : "note", world: [p.x, p.y + 0.32, p.z],
         text: n.title.length > 34 ? `${n.title.slice(0, 33)}…` : n.title,
-        fontSize: isFocus ? NOTE_FONT * 1.4 : NOTE_FONT, priority: isFocus ? 4 : 1 + n.degree / 100,
+        fontSize: (isFocus ? NOTE_FONT * 1.4 : NOTE_FONT) * k, priority: isFocus ? 4 : 1 + n.degree / 100,
         color: isFocus ? "#ffffff" : "#c9d4ee",
       });
     }
@@ -98,7 +118,7 @@ export function FloatingLabels() {
   const [, setTick] = useState(0);
 
   const relayout = () => {
-    const specs = collectSpecs();
+    const specs = collectSpecs(camera);
     const out = resolveLabelCollisions(specs, camera, { width: size.width, height: size.height });
     setPlaced(specs.map((s, i) => ({ ...s, at: out[i].world })));
     last.current = performance.now();
@@ -128,14 +148,16 @@ export function FloatingLabels() {
             renderOrder={l.kind === "note" ? 0 : 10}
             material-depthTest={false}
             fontSize={l.fontSize}
-            letterSpacing={l.kind === "group" ? 0.16 : 0}
+            letterSpacing={l.kind === "group" ? 0.04 : 0}
             color={l.color}
-            fillOpacity={(l.kind === "note" ? 0.7 : 1) * (l.kind === "hit" || l.kind === "focus" ? 1 : lit(0.35))}
+            fillOpacity={l.kind === "group"
+              ? 0.6 * (l.fade ?? 1)
+              : (l.kind === "note" ? 0.7 : 1) * (l.kind === "hit" || l.kind === "focus" ? 1 : lit(0.35))}
             anchorX="center"
             anchorY="middle"
-            outlineWidth={l.kind === "group" ? 0.012 : 0.018}
+            outlineWidth={l.kind === "group" ? 0.003 : 0.018 * Math.min(1, l.fontSize / NOTE_FONT)}
             outlineColor="#05060a"
-            outlineOpacity={0.8}
+            outlineOpacity={l.kind === "group" ? 0.45 * (l.fade ?? 1) : 0.8}
           >
             {l.text}
           </Text>

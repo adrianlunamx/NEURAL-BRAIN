@@ -43,7 +43,7 @@ Cuando **Claude Code**, **Cursor**, **Codex** o cualquier otro agente trabaja, l
 <td width="50%" valign="top">
 
 ### 🧠 Un cerebro de verdad
-Un cerebro anatómico en vista lateral: circunvoluciones y surcos, lóbulo temporal bajo la cisura lateral, cerebelo con estrías y tronco encefálico. Dentro hay 19.000 neuronas como polvo luminoso, repartidas entre lóbulo frontal, parietal, temporal, occipital, hipocampo y cerebelo. Dos estilos: **Orgánico** (corteza perlada con luz dorada por dentro, el predeterminado) y **Neón** (piel punteada, fibras azules y estrellas).
+Un cerebro anatómico en vista lateral: circunvoluciones y surcos, lóbulo temporal bajo la cisura lateral, cerebelo con estrías y tronco encefálico. Dentro hay 19.000 neuronas como polvo luminoso, repartidas entre lóbulo frontal, parietal, temporal, occipital, hipocampo y cerebelo. La corteza es perlada, iluminada desde arriba, con luz dorada por dentro.
 
 ### 🌙 Se enciende al pensar
 En reposo queda en penumbra. Cada acción de un agente dispara neuronas, la activación **se propaga en onda** a sus vecinas y luego se apaga poco a poco. Si lo prefieres siempre iluminado, hay un interruptor.
@@ -79,8 +79,7 @@ Escribe en el buscador y pulsa Enter. El cerebro busca por embeddings (ChromaDB)
 <td width="50%"><img src="docs/img/connect.png" alt="Pregunta en fase CONNECT"><br><sub><b>Pensando.</b> Una pregunta en fase CONNECT: los rayos llegan a las notas que responden, con su porcentaje de similitud.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/img/cortex.png" alt="Corteza de cerca"><br><sub><b>De cerca.</b> Circunvoluciones con relieve, iluminadas desde arriba, con filamentos y chispas doradas por dentro.</sub></td>
-<td width="50%"><img src="docs/img/neon.png" alt="Estilo Neón"><br><sub><b>Estilo Neón.</b> El mismo cerebro con piel punteada, fibras azules y estrellas. Se cambia desde la barra superior.</sub></td>
+<td colspan="2"><img src="docs/img/cortex.png" alt="Corteza de cerca"><br><sub><b>De cerca.</b> Circunvoluciones con relieve, iluminadas desde arriba, con filamentos y chispas doradas por dentro. Los nombres de los grupos solo aparecen, diminutos, al acercar la cámara.</sub></td>
 </tr>
 <tr>
 <td colspan="2"><img src="docs/img/list.png" alt="Vista Lista"><br><sub><b>Lista.</b> Todas las notas en una tabla ordenable por conexiones, uso o fecha, con los mismos filtros de grupo, tipo y búsqueda.</sub></td>
@@ -224,7 +223,6 @@ Acciones: `lee` `busca` `edita` `crea` `git` `commit` `compila` `prueba` `script
 | Grupos · Tipos · Conexiones | barra lateral | Mostrar u ocultar por grupo, tipo de nota o tipo de conexión (`todos` / `ninguno`) |
 | Grafo · Lista | arriba a la izquierda | Cerebro 3D o tabla ordenable de notas |
 | Grupos · Uso | arriba a la izquierda | Color de las notas por grupo o por cuánto las usan los agentes |
-| Orgánico · Neón | barra superior | Estilo del cerebro: corteza perlada y dorada, o neón con estrellas |
 | Siempre encendido | barra superior | Apagado (por defecto): reposa a oscuras y se ilumina al pensar |
 | Animaciones | barra superior · `A` | Rotación, parpadeo de las luciérnagas y pulsos por las conexiones |
 | problemas | barra superior | Enlaces rotos, notas sin conexiones y duplicados (clic → la nota) |
