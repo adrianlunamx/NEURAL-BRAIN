@@ -19,7 +19,7 @@
 | 🧠 **Ingesta** | Cada nota se convierte en una **neurona**. Se enlaza por similitud semántica con las que ya existen, y cada *tag* crea (o refuerza) una **neurona-concepto** hub. |
 | 🔎 **RAG** | Una pregunta se embebe, se buscan los recuerdos más cercanos en ChromaDB y el grafo encuentra los **caminos** que los unen. Claude sintetiza la respuesta citando las fuentes `[n]`. |
 | ✨ **Visualización** | El proceso se emite por **SSE** fase a fase y el frontend lo anima: la consulta aparece, una onda escanea el cerebro, la corriente eléctrica recorre las sinapsis y la respuesta emerge en el centro. |
-| 🧬 **Forma de cerebro** | Las neuronas viven dentro de un cerebro humano: dos hemisferios, lóbulos frontal, parietal, temporal y occipital, cerebelo e hipocampo. Cada **área de conocimiento** (comunidad del grafo) ocupa una región, los conceptos están en la corteza y los hechos más adentro. |
+| 🧬 **Forma de cerebro** | Por defecto el grafo es un **cerebro aplanado visto desde arriba**: un óvalo denso en el centro y disperso en los bordes. Con `LAYOUT_MODE=brain` las neuronas viven dentro de un cerebro humano anatómico (hemisferios, lóbulos, cerebelo, hipocampo). |
 
 ![cerebro en reposo](docs/brain-idle.png)
 
@@ -71,22 +71,20 @@ cd frontend && npm install && npm run dev
 
 | Fase | Tiempo | Qué pasa en el backend | Qué ves |
 |---|---|---|---|
-| **INPUT** | 0–300 ms | llega la pregunta | la neurona magenta nace con un *burst* de partículas, escala `0 → 1.5 → 1.0` (elastic) y un destello que se apaga |
-| **SEARCH** | 300–800 ms | embedding + top‑k en ChromaDB → evento `search` | ondas concéntricas y un plano de escaneo recorren el grafo; las neuronas encontradas se encienden **progresivamente según su distancia**, con rayos de partículas desde la consulta |
-| **CONNECT** | 800–1500 ms | caminos más cortos entre los resultados → evento `connect` | las sinapsis del camino se vuelven blancas con una **corriente eléctrica** que las recorre, estelas de partículas y pulsos en **cascada** en las neuronas |
-| **SYNTHESIZE** | 1500–2000 ms | Claude genera en streaming → eventos `token` + `synthesize` | todas las neuronas activas laten sincronizadas, rayos convergen hacia la **neurona-respuesta** amarilla que emerge en el centro con una explosión suave |
+| **INPUT** | 0–300 ms | llega la pregunta | la neurona-consulta magenta (r = 0.8) aparece **encima** del grafo con un *burst* de partículas, escala `0 → 1.5 → 1.0` (elastic) y un destello que se apaga; la rotación se detiene |
+| **SEARCH** | 300–800 ms | embedding + top‑k en ChromaDB → evento `search` | 5–7 neuronas se encienden **progresivamente**, se vuelven **blancas** y crecen ×1.2–1.5; aparecen etiquetas con su **%**; haces blancos gruesos (r = 0.05) van de la consulta a cada una; el resto se oscurece al 30 %; la cámara hace **auto-zoom** al cluster y aparece una **nube azul/cian** a su alrededor |
+| **CONNECT** | 800–1500 ms | caminos más cortos entre los resultados → evento `connect` | las sinapsis entre neuronas activas se vuelven **tubos blancos gruesos** (r = 0.08) con una **corriente eléctrica** y partículas viajando; las chispas de las neuronas activas aumentan y parpadean |
+| **SYNTHESIZE** | 1500–2000 ms | Claude genera en streaming → eventos `token` + `synthesize` | la neurona más relevante se vuelve **amarilla** (#ffff00) y escala ×2; las demás activas convergen hacia ella; la nube brilla al máximo y hay una explosión suave de partículas |
 
-Cada fase empieza en *su* instante o cuando llegan los datos reales, lo que ocurra después: la animación nunca va por delante del razonamiento. Si Claude tarda, la fase CONNECT sigue viva hasta el primer token.
+Cada fase empieza en *su* instante o cuando llegan los datos reales, lo que ocurra después: la animación nunca va por delante del razonamiento. Si Claude tarda, la fase CONNECT sigue viva hasta el primer token. **2 s después** de la respuesta el cerebro vuelve al estado idle (el panel de respuesta sigue abierto) y la cámara regresa a la vista general.
 
-**Idle:** las neuronas (soma + dendritas + axón) respiran (`scale 1.0 ↔ 1.05`, ciclo 2 s), el cerebro rota lentamente, una silueta holográfica con un barrido de escaneo dibuja corteza, cerebelo y tronco encefálico, y flota polvo neuronal entre 5000 estrellas. Las fibras largas entre lóbulos o hemisferios (tipo cuerpo calloso) se arquean más y son violetas.
+**Idle:** óvalo aplanado de esferas brillantes simples (r 0.3–0.5), cian para conceptos y verde para hechos, cada una con 5–8 **chispas** cortas y un pulso sutil (`1.0 ↔ 1.03`). Sinapsis muy finas `#4169e1` al 15 % y sólo entre neuronas cercanas (< 8 unidades; las largas aparecen cuando transportan un pensamiento). Rotación lenta (0.3), polvo flotante, sin etiquetas ni efectos.
 
-**Durante la respuesta:** la cámara hace **auto-zoom** al cluster activo, cada neurona encontrada emite **anillos de pulso** y muestra una etiqueta con su **% de relevancia** respecto a la mejor coincidencia (la mejor = 100 %).
+**Interacción:** hover → glow + `scale 1.2` + etiqueta · click → vuelo suave de cámara + panel de info · arrastrar → rotar · botón derecho / dos dedos → **pan** · scroll → zoom (15–80) · doble click en el vacío → vista general · `/` o la pestaña `INPUT` enfocan el input · `Esc` cancela · `↑` recupera la última pregunta · las citas `[n]` de la respuesta son clicables.
 
-**Interacción:** hover → glow + `scale 1.2` + etiqueta · click → vuelo suave de cámara + panel de info · arrastrar → rotar · botón derecho / dos dedos → **pan** · scroll → zoom (10–100) · doble click en el vacío → vista general · `/` o la pestaña `INPUT` enfocan el input · `Esc` cancela · `↑` recupera la última pregunta · las citas `[n]` de la respuesta son clicables.
+**Panel de vista** (abajo a la derecha): `ANIM`, `AUTO-ZOOM`, `LABELS` (etiquetas de todos los conceptos), `SILUETA` (sólo en `LAYOUT_MODE=brain`), `DOF`, `HOME`. Las preferencias se recuerdan en el navegador.
 
-**Panel de vista** (abajo a la derecha): `ANIM`, `AUTO-ZOOM`, `LABELS` (etiquetas de todos los conceptos), `SILUETA`, `DOF`, `HOME`. Las preferencias se recuerdan en el navegador.
-
-**Post-procesado:** Bloom (mipmap), viñeta, aberración cromática que da un "latigazo" en cada cambio de fase (hace de *motion blur* barato) y **Depth of Field** opcional (toggle `DOF`, sigue el punto que orbita la cámara).
+**Post-procesado:** Bloom (intensidad 1.2 en idle → 2.0 mientras piensa) y **Depth of Field** opcional (toggle `DOF`, sigue el punto que orbita la cámara).
 
 ## Arquitectura
 
@@ -146,7 +144,7 @@ curl -X DELETE localhost:8000/api/reset  # borrar todo
 | `TOP_K` | `5` | Recuerdos recuperados por pregunta. |
 | `LINK_THRESHOLD` | `0.35` | Similitud mínima para crear una sinapsis al ingestar. |
 | `MAX_LINKS_PER_NODE` | `4` | Sinapsis semánticas máximas por neurona nueva. |
-| `LAYOUT_MODE` | `brain` | `brain` = forma anatómica de cerebro · `force` = force-directed 3D con clusters por tipo. |
+| `LAYOUT_MODE` | `oval` | `oval` = cerebro aplanado visto desde arriba · `brain` = forma anatómica de cerebro · `force` = force-directed 3D con clusters por tipo. |
 | `LAYOUT_ITERATIONS` | `200` | Iteraciones del layout `force`. |
 | `STORAGE_DIR` | `./storage` | Dónde se persisten ChromaDB y el grafo. |
 | `CORS_ORIGINS` | `http://localhost:5173,…` | Orígenes permitidos. |
@@ -170,7 +168,7 @@ neural-brain/
 │   └── tests/                 pytest (offline)
 ├── frontend/
 │   └── src/
-│       ├── components/        BrainCanvas · Neuron · Connection · Particles · ThinkingFX · PulseRings
+│       ├── components/        BrainCanvas · Neuron · Connection · Particles · ThinkingFX · ThinkingCloud
 │       │                      BrainShell · CameraRig · Header · QueryInput · ResponsePanel · NeuronInfo · Controls …
 │       ├── hooks/             useBrain · useThinking · useGraphData · useAutoZoom
 │       ├── utils/             api (axios + SSE) · animations · colors · particleBus
