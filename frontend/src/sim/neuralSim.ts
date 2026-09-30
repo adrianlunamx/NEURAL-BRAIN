@@ -54,7 +54,7 @@ export const PARAMS = {
 
 const SLOT = 0.01;          // time wheel resolution (s)
 const NSLOT = 512;          // horizon 5.12 s, longer than any delay
-const MAX_CATCH_UP = 1;     // after a hidden tab, skip ahead instead of replaying
+const MAX_CATCH_UP = 1;     // after a hidden tab (or a clock that jumped back), skip instead of replaying
 const CELL = 0.6;
 const EEG_HZ = 100;
 const EEG_LEN = 512;
@@ -253,7 +253,7 @@ class NeuralSim {
     this.arousal = arousalLevel;
     this.fired.length = 0;
     if (!this.started) { this.started = true; this.now = t; this.slotTime = t; this.eegT = t; return; }
-    if (t - this.now > MAX_CATCH_UP) {
+    if (t - this.now > MAX_CATCH_UP || t < this.now) {
       this.clearWheel();
       this.now = t; this.slotTime = t; this.eegT = t;
       return;
@@ -406,7 +406,7 @@ class NeuralSim {
     const a = this.arousal;
     const rates = this.slotRates;
     const dt = 1 / EEG_HZ;
-    this.eegCarry += t - this.eegT;
+    this.eegCarry = Math.max(0, this.eegCarry + t - this.eegT);
     this.eegT = t;
     let ri = 0;
     while (this.eegCarry >= dt) {
