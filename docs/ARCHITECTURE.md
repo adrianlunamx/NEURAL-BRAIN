@@ -37,7 +37,7 @@ flowchart TB
 | Módulo | Qué hace |
 |---|---|
 | `models.py` | Contratos Pydantic (espejados en `frontend/src/types.ts`). |
-| `../brain_layout.py` | v2: el cerebro como SDF (vista lateral), `classify_regions`, muestreo uniforme en el volumen, generación de `brain_layout.json` y de la cáscara `brain_shell.json` (marching cubes). |
+| `../brain_layout.py` | v2.1: el cerebro como SDF (vista lateral; cerebelo fusionado bajo el occipital, polo frontal redondeado), `classify_regions` (espejada en `classifyRegion()` del frontend), muestreo uniforme en el volumen, generación de `brain_layout.json` y de la cáscara `brain_shell.json` (marching cubes). |
 | `graph_store.py` | 19.000 neuronas sembradas desde `brain_layout.json` (6 regiones como zonas de un mismo volumen; hipocampo la menor); neuronas nuevas muestreadas dentro de su región; snapshots v1 migrados al cargar; 2 aristas locales por neurona; 240 fibras entre regiones; **orden de render estratificado proporcional**: en cualquier prefijo cada región aparece en su proporción (p. ej. el 25 % de cualquier prefijo es frontal), así cada nivel LOD es un cerebro completo. Cuando está lleno, `add_neuron` **recicla** la neurona semilla menos activada (conserva su posición en el orden). |
 | `vector_store.py` | ChromaDB con `sentence-transformers`; `EMBEDDING_BACKEND=hash` usa un embedder de hashing sin descargas. |
 | `git_store.py` | `graph.json` en un repo Git local; commits con el CLI de `git` (sobrevive a Ctrl+C); auto-commit cada 25 eventos / 60 s; `restore(hash)` recarga y vuelve a commitear. |
@@ -54,4 +54,4 @@ flowchart TB
 | `brainStore` | zustand con selectores finos; `onActivation` y `onNeuronUpsert` son buses fuera de React (60 fps sin re-render). `graphVersion` fuerza a reconstruir instancias tras un restore. |
 | `useLOD` | `mesh.count` según la distancia de cámara (≤12 → 19k, ≤18 → 12k, ≤26 → 5k, resto 1k), suavizado y nunca mayor que las instancias cargadas. |
 | `Fibers` | Un único `LineSegments` con shader de pulso viajero. |
-| `QueryAnimation` | Una escena por fase; textos con fuente Inter local en un error boundary propio. |
+| `QueryAnimation` | Una escena por fase; textos con fuente Inter local en un error boundary propio. En CONNECT, `labelLayout.ts` escalona los `%` en Y para que no se enciman. |

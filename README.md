@@ -16,7 +16,7 @@
 
 | | |
 |---|---|
-| 🧠 **Cerebro anatómico (v2)** | **Un solo cerebro en vista lateral**: frontal a la derecha, occipital a la izquierda, cerebelo abajo-atrás, con cáscara translúcida (fresnel). 19.000 neuronas repartidas uniformemente en el volumen; las 6 regiones (frontal, parietal, temporal, occipital, hipocampo, cerebelo) son **zonas de color** dentro de él, unidas por fibras largas tipo cuerpo calloso. Dos `InstancedMesh` (base + halo) → 2 draw calls. |
+| 🧠 **Cerebro anatómico (v2.1)** | **Un solo cerebro en vista lateral**: frontal a la derecha (polo redondeado), occipital a la izquierda, cerebelo pegado bajo el occipital, con cáscara translúcida (fresnel). 19.000 neuronas repartidas uniformemente en el volumen; las 6 regiones (frontal, parietal, temporal, occipital, hipocampo, cerebelo) son **zonas de color** dentro de él, unidas por fibras largas tipo cuerpo calloso. Dos `InstancedMesh` (base + halo) → 2 draw calls. |
 | 🔎 **Memoria semántica** | Cada texto ingerido, evento de Claude Code o pregunta se convierte en neurona con embedding en ChromaDB. |
 | ⚡ **Consultas en 4 fases** | `INPUT` (neurona magenta arriba) → `SEARCH` (rayos magenta + "escaneando memoria...") → `CONNECT` (labels con % y conexiones blancas) → `SYNTHESIZE` (neurona amarilla gigante + explosión) → `IDLE`. Todo llega por **SSE**. |
 | 🤖 **Claude** | Con `ANTHROPIC_API_KEY`, Claude redacta la respuesta de la fase SYNTHESIZE a partir de los recuerdos encontrados (se muestra en el HUD). Sin key, un resumen extractivo. |
@@ -138,9 +138,9 @@ make test        # 20 tests, sin red ni API key
 
 Cubren: 19.000 neuronas sembradas dentro del cerebro y en su región, anatomía lateral, neuronas nuevas dentro de su región, migración de snapshots v1, validez de `brain_layout.json` / `brain_shell.json`, estratificación de cada nivel LOD, reciclado, snapshot/restore, fan-out del SSE, las 5 fases en orden con el top-1 correcto, fallback a hipocampo, API completa, Git (commit/log/restore) y el `hook_handler`. CI ejecuta además `tsc` + build del frontend.
 
-## Layout anatómico v2 (`backend/brain_layout.py`)
+## Layout anatómico v2.1 (`backend/brain_layout.py`)
 
-El cerebro es un campo de distancia con signo (SDF): cerebro con base aplanada y cisura entre hemisferios, lóbulos temporales, cerebelo y tronco encefálico, unidos con uniones suaves. Las neuronas se muestrean uniformemente dentro y cada punto se clasifica en su región.
+El cerebro es un campo de distancia con signo (SDF): cerebro con base aplanada y cisura entre hemisferios, un abultamiento frontal que redondea el polo anterior, cerebelo fusionado bajo el lóbulo occipital (smooth-min `k=1.3`) y tronco encefálico. Las neuronas se muestrean uniformemente dentro de la caja `[-6,-5,-3.5]…[6,4,3.5]` y cada punto se clasifica en su región con `classify_regions` (cerebelo > frontal > occipital > parietal > temporal > hipocampo), espejada en `classifyRegion()` de `frontend/src/config/brainConfig.ts` junto con `BRAIN_BOUNDS`. Cambios v2.1 en [`docs/INSTRUCCIONES-v2.1.md`](docs/INSTRUCCIONES-v2.1.md).
 
 ```bash
 cd backend
@@ -153,6 +153,7 @@ python brain_layout.py --no-shell                              # sólo el layout
 - Neuronas nuevas (ingesta, hooks, consultas) se colocan por rejection sampling del SDF **dentro de su región** (un `Read` sigue cayendo en el temporal).
 - Un `graph.json` guardado con el layout v1 (6 elipsoides) se **migra** al cargarlo: cada neurona conserva id, región, label, aristas y embedding; sólo cambia de posición.
 - Sin `brain_shell.json` la app funciona igual (aviso en consola, sin cáscara).
+- En CONNECT, los `%` flotantes se escalonan en Y con `layoutLabels` (`frontend/src/components/labelLayout.ts`, gap 0.9) y se dibujan por encima de las neuronas, así no se enciman.
 
 ## Diferencias con la especificación
 
