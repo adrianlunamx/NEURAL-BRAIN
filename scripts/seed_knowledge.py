@@ -13,7 +13,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-URL = (sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8000").rstrip("/")
+URL = (sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000").rstrip("/")
 BACKEND = Path(__file__).resolve().parent.parent / "backend"
 
 
