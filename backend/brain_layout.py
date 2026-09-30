@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Anatomical brain layout (v2): one brain in lateral view instead of six separate ellipsoids.
+"""Anatomical brain layout (v2.1): one brain in lateral view instead of six separate ellipsoids.
 
 The brain is a signed distance field (SDF): negative inside, positive outside.
 Neurons are sampled uniformly inside it and each point is classified into one of
 the six regions, so regions appear as coloured zones of a single volume.
+
+v2.1: cerebellum tucked under the occipital lobe (smooth-min k=1.3), a frontal
+bulge that rounds the anterior pole, and the sampling box extended to x = 6.0.
 
 Axes (same as the rest of the project):
     x = front(+) / back(-)   y = up(+) / down(-)   z = right(+) / left(-)
@@ -33,8 +36,10 @@ DEFAULT_LAYOUT = HERE / "brain_layout.json"
 LAYOUT_VERSION = 2
 
 # Sampling box that fully contains the brain (also used by GraphStore.add_neuron).
+# v2.1: x max raised from 5.5 to 6.0 for the rounded frontal pole.
 BOUNDS_MIN = np.array([-6.0, -5.0, -3.5])
-BOUNDS_MAX = np.array([5.5, 4.0, 3.5])
+BOUNDS_MAX = np.array([6.0, 4.0, 3.5])
+BOX_MIN, BOX_MAX = BOUNDS_MIN, BOUNDS_MAX
 
 REGIONS = ["frontal", "parietal", "temporal", "occipital", "hippocampus", "cerebellum"]
 
@@ -48,79 +53,71 @@ def _sd_ellipsoid(p: np.ndarray, center, radii) -> np.ndarray:
     q = (p - np.asarray(center)) / np.asarray(radii)
     k0 = np.linalg.norm(q, axis=-1)
     k1 = np.linalg.norm(q / np.asarray(radii), axis=-1)
-    return k0 * (k0 - 1.0) / np.maximum(k1, 1e-9)
-
-
-def _sd_capsule(p: np.ndarray, a, b, r: float) -> np.ndarray:
-    a, b = np.asarray(a, float), np.asarray(b, float)
-    pa, ba = p - a, b - a
-    h = np.clip((pa @ ba) / (ba @ ba), 0.0, 1.0)
-    return np.linalg.norm(pa - h[:, None] * ba, axis=-1) - r
+    return k0 * (k0 - 1.0) / np.maximum(k1, 1e-12)
 
 
 def _smin(a: np.ndarray, b: np.ndarray, k: float) -> np.ndarray:
     """Smooth union (polynomial smooth-min)."""
     h = np.clip(0.5 + 0.5 * (b - a) / k, 0.0, 1.0)
-    return b * (1 - h) + a * h - k * h * (1 - h)
+    return b + (a - b) * h - k * h * (1.0 - h)
 
 
-def _smax(a: np.ndarray, b: np.ndarray, k: float) -> np.ndarray:
-    return -_smin(-a, -b, k)
+def _smoothstep(edge0: float, edge1: float, x: np.ndarray) -> np.ndarray:
+    t = np.clip((x - edge0) / (edge1 - edge0), 0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
 
 
 # ---------------------------------------------------------------------------
-# The brain
+# The brain (v2.1)
 # ---------------------------------------------------------------------------
 
-CEREBRUM = {"center": (-0.2, 0.55, 0.0), "radii": (5.6, 3.55, 3.2)}
-TEMPORAL_LOBES = [{"center": (0.9, -1.55, s * 2.0), "radii": (2.7, 1.45, 1.15)} for s in (1, -1)]
-CEREBELLUM = {"center": (-3.55, -2.95, 0.0), "radii": (1.95, 1.3, 2.25)}
-BRAINSTEM = {"a": (-1.3, -2.0, 0.0), "b": (-1.85, -4.7, 0.0), "r": 0.62}
-HIPPOCAMPI = [{"center": (-0.3, -1.05, s * 1.0), "radii": (1.5, 0.5, 0.45)} for s in (1, -1)]
+CEREBRUM = {"center": (0.5, 0.3, 0.0), "radii": (4.2, 3.4, 2.8)}
+# v2.1: rounds the anterior (frontal) pole in lateral view.
+FRONTAL_BULGE = {"center": (3.6, 0.4, 0.0), "radii": (1.8, 2.5, 2.3)}
+# v2.1: tucked under the occipital lobe and strongly blended into the cerebrum.
+CEREBELLUM = {"center": (-2.6, -2.6, 0.0), "radii": (1.7, 1.4, 1.5)}
+BRAINSTEM = {"center": (-1.6, -3.2, 0.0), "radii": (0.7, 1.4, 0.7)}
+HIPPOCAMPUS = {"center": (-0.2, -0.8, 0.0), "radii": (1.3, 0.9, 1.0)}
+
+Y_FLAT = -1.4               # inferior flattening of the cerebrum (keep y > Y_FLAT)
+SMOOTH_K = 0.7              # default blend (brainstem)
+BLEND_CEREBELLUM_K = 1.3    # v2.1: no visible gap between cerebellum and occipital lobe
+BLEND_BULGE_K = 0.9         # v2.1: round frontal pole, not lumpy
 
 
 def sdf_brain(points: np.ndarray) -> np.ndarray:
     """Signed distance to the whole brain surface. `points` is (n, 3); < 0 means inside."""
     p = np.atleast_2d(np.asarray(points, dtype=float))
-    x, y, z = p[:, 0], p[:, 1], p[:, 2]
 
-    cerebrum = _sd_ellipsoid(p, **CEREBRUM)
-    # flatten the base of the cerebrum (it rests on the temporal lobes / cerebellum)
-    cerebrum = _smax(cerebrum, -(y + 1.25), 0.6)
-    # frontal pole a little lower and rounder than the occipital pole
-    cerebrum = cerebrum + 0.18 * np.clip(x / 5.6, 0, 1) * np.clip(y / 3.5, 0, 1)
-    # longitudinal fissure between the hemispheres (a thin slab carved from the top)
-    fissure = np.where(y > 0.9, 0.12 - np.abs(z), -10.0)
-    cerebrum = _smax(cerebrum, fissure, 0.15)
+    d_cer = _sd_ellipsoid(p, **CEREBRUM)
+    d_cer = np.maximum(d_cer, Y_FLAT - p[:, 1])
+    # longitudinal fissure: shallow groove along the top midline
+    near_midline = 1.0 - _smoothstep(0.0, 0.35, np.abs(p[:, 2]))
+    upper = _smoothstep(0.6, 1.8, p[:, 1])
+    d_cer = d_cer + 0.45 * near_midline * upper
+    d_cer = _smin(d_cer, _sd_ellipsoid(p, **FRONTAL_BULGE), BLEND_BULGE_K)
 
-    temporal = np.minimum(*(_sd_ellipsoid(p, **t) for t in TEMPORAL_LOBES))
-    cerebellum = _sd_ellipsoid(p, **CEREBELLUM)
-    brainstem = _sd_capsule(p, BRAINSTEM["a"], BRAINSTEM["b"], BRAINSTEM["r"])
-
-    d = _smin(cerebrum, temporal, 0.7)
-    d = _smin(d, brainstem, 0.5)
-    d = _smin(d, cerebellum, 0.35)
-    # shallow gyri: a gentle ripple on the surface
-    ripple = 0.045 * np.sin(3.1 * x + 1.7 * y) * np.sin(2.9 * y + 2.3 * z) * np.sin(2.2 * z + 1.3 * x)
-    return d + ripple
+    d = _smin(d_cer, _sd_ellipsoid(p, **CEREBELLUM), BLEND_CEREBELLUM_K)
+    return _smin(d, _sd_ellipsoid(p, **BRAINSTEM), SMOOTH_K)
 
 
 def classify_regions(points: np.ndarray) -> np.ndarray:
-    """Region name for each point (points are assumed to be inside the brain)."""
-    p = np.atleast_2d(np.asarray(points, dtype=float))
-    x, y, z = p[:, 0], p[:, 1], p[:, 2]
-    out = np.full(len(p), "parietal", dtype=object)
+    """Region name for each point (points are assumed to be inside the brain).
 
-    out[x > 1.3 - 0.35 * y] = "frontal"                        # central sulcus slants backwards
-    out[x < -3.0 + 0.25 * y] = "occipital"
-    temporal = (y < -0.55 + 0.12 * x) & (np.abs(z) > 0.95) & (x > -3.2)
-    out[temporal] = "temporal"
-    hippo = np.zeros(len(p), dtype=bool)
-    for h in HIPPOCAMPI:
-        hippo |= _sd_ellipsoid(p, **h) < 0
-    out[hippo] = "hippocampus"
-    hindbrain = (_sd_ellipsoid(p, **CEREBELLUM) < 0.05) | (_sd_capsule(p, BRAINSTEM["a"], BRAINSTEM["b"], BRAINSTEM["r"]) < 0.05)
-    out[hindbrain & (y < -1.6)] = "cerebellum"
+    Priority (highest first): cerebellum > frontal > occipital > parietal >
+    temporal > hippocampus > fallback (temporal if y < 0 else parietal).
+    Mirrors classifyRegion() in frontend/src/config/brainConfig.ts — keep in sync.
+    """
+    p = np.atleast_2d(np.asarray(points, dtype=float))
+    x, y, z_abs = p[:, 0], p[:, 1], np.abs(p[:, 2])
+    out = np.empty(len(p), dtype=object)
+    out[:] = np.where(y < 0.0, "temporal", "parietal")
+    out[_sd_ellipsoid(p, **HIPPOCAMPUS) < 0.0] = "hippocampus"
+    out[z_abs > 1.2] = "temporal"
+    out[y > 1.2] = "parietal"
+    out[x < -1.6] = "occipital"
+    out[x > 1.8] = "frontal"
+    out[_sd_ellipsoid(p, **CEREBELLUM) < 0.0] = "cerebellum"
     return out
 
 
