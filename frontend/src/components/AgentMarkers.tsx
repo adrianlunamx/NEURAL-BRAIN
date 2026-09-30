@@ -4,14 +4,24 @@ import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { actionColor, livePositions, useNotesStore } from "../store/notesStore";
 import { AgentInfo, SessionInfo } from "../types";
+import { BRAIN_CENTER, sdfBrain } from "../config/brainConfig";
 
 /** Agents that acted within this window get a marker. */
 const ACTIVE_SECONDS = 90;
 const ARC_POINTS = 32;
 
-/** Where each session "sits": along the base of the brain, front to back. */
+const HUB_CENTER = new THREE.Vector3(...BRAIN_CENTER);
+const HUB_MARGIN = 0.35;
+
+/**
+ * Where each session "sits": along the base of the brain, front to back,
+ * alternating sides — always inside the volume (pulled toward the centre
+ * until the brain SDF says it is at least HUB_MARGIN deep).
+ */
 function hubPosition(index: number): THREE.Vector3 {
-  return new THREE.Vector3(3.2 - index * 2.4, -2.1, 2.3);
+  const p = new THREE.Vector3(2.6 - (index % 4) * 1.7, -1.1 + Math.floor(index / 4) * 1.0, index % 2 ? -1.1 : 1.1);
+  for (let k = 0; k < 40 && sdfBrain([p.x, p.y, p.z]) > -HUB_MARGIN; k++) p.lerp(HUB_CENTER, 0.12);
+  return p;
 }
 
 function hashIndex(key: string, n: number): number {
