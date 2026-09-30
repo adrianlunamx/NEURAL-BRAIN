@@ -13,7 +13,7 @@ Base `http://localhost:8000` · Swagger en `/docs`. Modelos en `backend/app/mode
 | GET | `/graph?detail=` | `low` `medium` `high` `ultra` | `{nodes:[{id,label,region,x,y,z,size,color}], edges:[{source,target,weight,type}], total_neurons, detail}` |
 | GET | `/fibers` | — | `[{source,target,start,end,weight}]` |
 | GET | `/events/stream` | — | SSE (ver abajo) |
-| POST | `/hooks/event` | `{event, hook_type, tool_name, summary, target, cwd, session_id, agent_id, agent_type, action?, lines_added, lines_removed, extra}` | `{ok, neuron_id, region, recycled, note_id}` — `neuron_id` vacío en eventos de sesión |
+| POST | `/hooks/event` | `{client, event, hook_type, tool_name, summary, target, cwd, session_id, agent_id, agent_type, action?, lines_added, lines_removed, extra}` | `{ok, neuron_id, region, recycled, note_id}` — `neuron_id` vacío en eventos de sesión |
 | GET | `/regions` | — | `[{region, neuron_count, color, center, radii}]` |
 | GET | `/stats` | — | `{total_neurons, total_edges, total_events, phase}` |
 | POST | `/git/commit` | `{message?}` | `{commit_hash, message}` |
@@ -41,3 +41,9 @@ Cada mensaje: `event: <tipo>` + `data: {"event_type", "payload", "timestamp"}`.
 Tipos de nota: `instrucciones` `indice` `usuario` `feedback` `proyecto` `referencia` `documento` `handoff`.
 Conexiones: `wiki` `indice` `enlace` `responde` `mencion` `carpeta` `cadena` `sugerida` `parecida` `comparte`.
 Acciones: `lee` `busca` `edita` `crea` `git` `commit` `compila` `prueba` `script` `agente` `espera` `piensa` `fin`.
+
+## Agentes (`client`)
+
+`client` dice qué agente mandó el evento y aparece como etiqueta en cada sesión: `claude-code` (por defecto), `cursor`, `codex`, `gemini`, `aider` o cualquier otro texto. Las sesiones se separan por agente: dos agentes en la misma carpeta son dos sesiones.
+
+Adaptadores en `backend/hooks/`: `hook_handler.py` (Claude Code), `cursor_hook.py` (hooks de Cursor; responde siempre *allow*) y `agent_event.py` (CLI genérico; también entiende el `notify` de Codex).
