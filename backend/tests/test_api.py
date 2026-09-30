@@ -1,6 +1,19 @@
 import time
 
 
+def wait_idle(client, timeout=10.0):
+    """The phase machine runs in the background: wait for it instead of sleeping a fixed time."""
+    from backend.app import api
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        task = api._query_task
+        if (task is None or task.done()) and client.get("/stats").json()["phase"] == "IDLE":
+            return
+        time.sleep(0.05)
+    raise AssertionError("query phases did not return to IDLE")
+
+
 def test_health_graph_regions_fibers(client):
     assert client.get("/health").json()["ok"] is True
     low = client.get("/graph", params={"detail": "low"}).json()
@@ -23,8 +36,7 @@ def test_ingest_query_and_hooks(client):
     body = q.json()
     assert body["hits"][0]["id"] == r.json()["neuron_ids"][0]
     assert body["hits"][0]["score"] >= body["hits"][-1]["score"]
-    time.sleep(0.3)  # background phase machine (fast timings in tests)
-    assert client.get("/stats").json()["phase"] == "IDLE"
+    wait_idle(client)
 
     h = client.post("/hooks/event", json={"hook_type": "file_read", "tool_name": "Read", "summary": "Read: src/auth.py"})
     assert h.status_code == 200
@@ -51,7 +63,7 @@ def test_validation(client):
 
 def test_past_questions_are_not_returned_as_sources(client):
     client.post("/ingest", json={"text": "El hipocampo consolida la memoria durante el sueño"})
-    client.post("/query", json={"text": "memoria y sueño", "top_k": 5})
-    time.sleep(0.3)
+    assert client.post("/query", json={"text": "memoria y sueño", "top_k": 5}).status_code == 200
+    wait_idle(client)
     again = client.post("/query", json={"text": "memoria y sueño", "top_k": 5}).json()
     assert again["hits"] and all(not h["label"].startswith("query:") for h in again["hits"])

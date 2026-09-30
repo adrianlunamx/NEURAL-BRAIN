@@ -16,7 +16,7 @@
 
 | | |
 |---|---|
-| 🧠 **Cerebro anatómico** | 19.000 neuronas en 6 regiones (frontal, parietal, temporal, occipital, hipocampo, cerebelo) formadas por 8 elipsoides, con fibras largas tipo cuerpo calloso. Dos `InstancedMesh` (base + halo) → 2 draw calls. |
+| 🧠 **Cerebro anatómico (v2)** | **Un solo cerebro en vista lateral**: frontal a la derecha, occipital a la izquierda, cerebelo abajo-atrás, con cáscara translúcida (fresnel). 19.000 neuronas repartidas uniformemente en el volumen; las 6 regiones (frontal, parietal, temporal, occipital, hipocampo, cerebelo) son **zonas de color** dentro de él, unidas por fibras largas tipo cuerpo calloso. Dos `InstancedMesh` (base + halo) → 2 draw calls. |
 | 🔎 **Memoria semántica** | Cada texto ingerido, evento de Claude Code o pregunta se convierte en neurona con embedding en ChromaDB. |
 | ⚡ **Consultas en 4 fases** | `INPUT` (neurona magenta arriba) → `SEARCH` (rayos magenta + "escaneando memoria...") → `CONNECT` (labels con % y conexiones blancas) → `SYNTHESIZE` (neurona amarilla gigante + explosión) → `IDLE`. Todo llega por **SSE**. |
 | 🤖 **Claude** | Con `ANTHROPIC_API_KEY`, Claude redacta la respuesta de la fase SYNTHESIZE a partir de los recuerdos encontrados (se muestra en el HUD). Sin key, un resumen extractivo. |
@@ -133,10 +133,26 @@ Frontend (`frontend/.env`): `VITE_API_URL=http://localhost:8000`.
 ## Tests
 
 ```bash
-make test        # 15 tests, sin red ni API key
+make test        # 20 tests, sin red ni API key
 ```
 
-Cubren: 19.000 neuronas sembradas, estratificación de cada nivel LOD, reciclado, posiciones dentro de los elipsoides, snapshot/restore, fan-out del SSE, las 5 fases en orden con el top-1 correcto, fallback a hipocampo, API completa, Git (commit/log/restore) y el `hook_handler`. CI ejecuta además `tsc` + build del frontend.
+Cubren: 19.000 neuronas sembradas dentro del cerebro y en su región, anatomía lateral, neuronas nuevas dentro de su región, migración de snapshots v1, validez de `brain_layout.json` / `brain_shell.json`, estratificación de cada nivel LOD, reciclado, snapshot/restore, fan-out del SSE, las 5 fases en orden con el top-1 correcto, fallback a hipocampo, API completa, Git (commit/log/restore) y el `hook_handler`. CI ejecuta además `tsc` + build del frontend.
+
+## Layout anatómico v2 (`backend/brain_layout.py`)
+
+El cerebro es un campo de distancia con signo (SDF): cerebro con base aplanada y cisura entre hemisferios, lóbulos temporales, cerebelo y tronco encefálico, unidos con uniones suaves. Las neuronas se muestrean uniformemente dentro y cada punto se clasifica en su región.
+
+```bash
+cd backend
+python brain_layout.py --neurons 19000 --out brain_layout.json \
+    --shell ../frontend/public/brain_shell.json --seed 42      # "validation OK" + conteo por región
+python brain_layout.py --no-shell                              # sólo el layout (sin scikit-image)
+```
+
+- `brain_layout.json` (backend) y `brain_shell.json` (`frontend/public`) ya vienen generados; sólo hace falta regenerarlos si cambias la forma o la seed (la cáscara necesita `pip install scikit-image`, dependencia sólo de desarrollo). Si falta `brain_layout.json`, el backend lo genera al arrancar.
+- Neuronas nuevas (ingesta, hooks, consultas) se colocan por rejection sampling del SDF **dentro de su región** (un `Read` sigue cayendo en el temporal).
+- Un `graph.json` guardado con el layout v1 (6 elipsoides) se **migra** al cargarlo: cada neurona conserva id, región, label, aristas y embedding; sólo cambia de posición.
+- Sin `brain_shell.json` la app funciona igual (aviso en consola, sin cáscara).
 
 ## Diferencias con la especificación
 

@@ -1,7 +1,9 @@
 """Anatomical 3D graph store for Neural Brain.
 
-- Seeds MAX_NEURONS (19,000) neurons distributed inside 8 ellipsoids that form
-  the 6 brain regions (lateral-view brain shape).
+- v2: seeds MAX_NEURONS (19,000) neurons from the anatomical layout in
+  backend/brain_layout.py: ONE brain in lateral view (signed distance field),
+  regions are coloured zones of that volume. v1 snapshots (6 ellipsoids) are
+  migrated on load: every neuron keeps id/region/label/edges, only moves.
 - Stratified render order: region proportions are preserved in every prefix of
   the order, so LOD levels (1k/5k/12k/19k) always show a representative brain.
 - Long-range FIBER edges model the corpus callosum (inter-regional bundles).
@@ -19,8 +21,16 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import networkx as nx
+import numpy as np
 
 from .models import EdgeType, NeuronNode, Phase, Region, SynapseEdge
+
+try:  # backend/ is a package when the app runs as backend.app.main
+    from ..brain_layout import load_into_graphstore, sample_region
+except ImportError:  # pragma: no cover - running with backend/ on sys.path
+    from brain_layout import load_into_graphstore, sample_region  # type: ignore[no-redef]
+
+SNAPSHOT_VERSION = 2  # 1 = six separate ellipsoids, 2 = anatomical brain layout
 
 MAX_NEURONS = 19000
 
@@ -29,42 +39,6 @@ LOD_LEVELS: Dict[str, int] = {
     "medium": 5000,
     "high": 12000,
     "ultra": 19000,
-}
-
-# Ellipsoids per region. Axes: x = front(+) / back(-), y = up(+) / down(-),
-# z = right(+) / left(-). Units are arbitrary scene units; the brain spans
-# roughly x in [-6, 7], y in [-4.6, 4.4].
-REGION_ELLIPSOIDS: Dict[Region, List[Dict[str, Tuple[float, float, float]]]] = {
-    Region.FRONTAL: [
-        {"center": (4.0, 1.0, 0.0), "radii": (2.6, 2.4, 2.2)},
-    ],
-    Region.PARIETAL: [
-        {"center": (0.2, 2.4, 0.0), "radii": (2.2, 1.8, 2.0)},
-    ],
-    Region.TEMPORAL: [
-        {"center": (0.8, -1.4, 1.9), "radii": (1.6, 1.2, 1.0)},
-        {"center": (0.8, -1.4, -1.9), "radii": (1.6, 1.2, 1.0)},
-    ],
-    Region.OCCIPITAL: [
-        {"center": (-4.2, 0.8, 0.0), "radii": (1.8, 2.0, 1.8)},
-    ],
-    Region.HIPPOCAMPUS: [
-        {"center": (-0.5, -0.6, 0.7), "radii": (1.1, 0.6, 0.5)},
-        {"center": (-0.5, -0.6, -0.7), "radii": (1.1, 0.6, 0.5)},
-    ],
-    Region.CEREBELLUM: [
-        {"center": (-3.4, -3.2, 0.0), "radii": (1.9, 1.4, 1.6)},
-    ],
-}
-
-# Neuron budget per region. Must sum to MAX_NEURONS.
-REGION_BUDGET: Dict[Region, int] = {
-    Region.FRONTAL: 5200,
-    Region.PARIETAL: 3600,
-    Region.TEMPORAL: 4200,
-    Region.OCCIPITAL: 2400,
-    Region.HIPPOCAMPUS: 1600,
-    Region.CEREBELLUM: 2000,
 }
 
 REGION_COLORS: Dict[Region, str] = {
@@ -105,24 +79,15 @@ class GraphStore:
         self.render_order: List[str] = []
         # Per-region id lists for fast sampling.
         self.region_index: Dict[Region, List[str]] = {r: [] for r in Region}
+        self.np_rng = np.random.default_rng(seed)
 
     # ------------------------------------------------------------------
     # Layout helpers
     # ------------------------------------------------------------------
-    def _sample_in_ellipsoid(
-        self, center: Tuple[float, float, float], radii: Tuple[float, float, float]
-    ) -> Tuple[float, float, float]:
-        """Uniform random point inside an ellipsoid (gaussian direction + cbrt radius)."""
-        v = [self.rng.gauss(0.0, 1.0) for _ in range(3)]
-        norm = math.sqrt(sum(c * c for c in v)) or 1.0
-        direction = [c / norm for c in v]
-        r = self.rng.random() ** (1.0 / 3.0)
-        return tuple(center[i] + direction[i] * r * radii[i] for i in range(3))  # type: ignore[return-value]
-
     def _sample_position(self, region: Region) -> Tuple[float, float, float]:
-        ellipsoids = REGION_ELLIPSOIDS[region]
-        chosen = ellipsoids[self.rng.randrange(len(ellipsoids))]
-        return self._sample_in_ellipsoid(chosen["center"], chosen["radii"])
+        """A point inside the brain that belongs to `region` (SDF rejection sampling)."""
+        p = sample_region(region.value, 1, self.np_rng)[0]
+        return (float(p[0]), float(p[1]), float(p[2]))
 
     def _sample_neighbors(self, region: Region, exclude: str, k: int) -> List[str]:
         """k distinct same-region ids != exclude, without copying the whole region list."""
@@ -141,31 +106,45 @@ class GraphStore:
     # Seeding
     # ------------------------------------------------------------------
     def seed_brain(self) -> int:
-        """Create MAX_NEURONS neurons with local edges + inter-regional fibers."""
+        """v2: seed from the precomputed anatomical layout (backend/brain_layout.json)."""
         with self.lock:
             if self.graph.number_of_nodes() > 0:
                 return self.graph.number_of_nodes()
-            counter = 0
-            for region, budget in REGION_BUDGET.items():
-                for _ in range(budget):
-                    counter += 1
-                    neuron_id = f"n_{counter:05d}"
-                    pos = self._sample_position(region)
-                    node = NeuronNode(
-                        id=neuron_id,
-                        label=f"{region.value} neuron {counter}",
-                        region=region,
-                        position=pos,
-                        size=round(self.rng.uniform(0.7, 1.3), 2),
-                        color=REGION_COLORS[region],
-                        source="seed",
-                    )
-                    self.graph.add_node(neuron_id, **node.model_dump())
-                    self.region_index[region].append(neuron_id)
+        return load_into_graphstore(self, layout_path="brain_layout.json")
+
+    def seed_from_layout(self, positions, regions) -> int:
+        """Create one seed neuron per layout point, then local edges, fibers and LOD order."""
+        with self.lock:
+            if self.graph.number_of_nodes() > 0:
+                return self.graph.number_of_nodes()
+            for i, (pos, region_name) in enumerate(zip(positions[:MAX_NEURONS], regions[:MAX_NEURONS]), start=1):
+                region = Region(region_name)
+                neuron_id = f"n_{i:05d}"
+                node = NeuronNode(
+                    id=neuron_id,
+                    label=f"{region.value} neuron {i}",
+                    region=region,
+                    position=(float(pos[0]), float(pos[1]), float(pos[2])),
+                    size=round(self.rng.uniform(0.7, 1.3), 2),
+                    color=REGION_COLORS[region],
+                    source="seed",
+                )
+                self.graph.add_node(neuron_id, **node.model_dump())
+                self.region_index[region].append(neuron_id)
             self._build_local_edges()
             self._build_fibers()
             self._build_render_order()
             return self.graph.number_of_nodes()
+
+    def _relayout_v1(self) -> None:
+        """Move every neuron of a v1 snapshot into the anatomical brain (same region)."""
+        rng = np.random.default_rng(42)
+        for region, ids in self.region_index.items():
+            if not ids:
+                continue
+            points = sample_region(region.value, len(ids), rng)
+            for nid, p in zip(ids, points):
+                self.graph.nodes[nid]["position"] = (float(p[0]), float(p[1]), float(p[2]))
 
     def _build_local_edges(self) -> None:
         """Connect every neuron to 2 random same-region neighbors (local circuitry)."""
@@ -347,22 +326,23 @@ class GraphStore:
         return ordered[:max_edges]
 
     def get_region_info(self) -> List[dict]:
+        """Center and half-extent of each region, measured from its neurons."""
         with self.lock:
             infos = []
             for region in Region:
-                ellipsoids = REGION_ELLIPSOIDS[region]
-                cx = sum(e["center"][0] for e in ellipsoids) / len(ellipsoids)
-                cy = sum(e["center"][1] for e in ellipsoids) / len(ellipsoids)
-                cz = sum(e["center"][2] for e in ellipsoids) / len(ellipsoids)
-                rx = max(e["radii"][0] for e in ellipsoids)
-                ry = max(e["radii"][1] for e in ellipsoids)
-                rz = max(e["radii"][2] for e in ellipsoids)
+                ids = self.region_index[region]
+                if ids:
+                    pts = np.array([self.graph.nodes[i]["position"] for i in ids], dtype=float)
+                    center = tuple(float(c) for c in pts.mean(axis=0))
+                    radii = tuple(float(r) for r in (pts.max(axis=0) - pts.min(axis=0)) / 2)
+                else:
+                    center, radii = (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
                 infos.append({
                     "region": region.value,
-                    "neuron_count": len(self.region_index[region]),
+                    "neuron_count": len(ids),
                     "color": REGION_COLORS[region],
-                    "center": (cx, cy, cz),
-                    "radii": (rx, ry, rz),
+                    "center": center,
+                    "radii": radii,
                 })
             return infos
 
@@ -425,7 +405,7 @@ class GraphStore:
                 for u, v, dd in self.graph.edges(data=True)
             ]
             return {
-                "version": 1,
+                "version": SNAPSHOT_VERSION,
                 "exported_at": _utcnow().isoformat(),
                 "event_count": self.event_count,
                 "nodes": nodes,
@@ -472,6 +452,8 @@ class GraphStore:
             ordered = set(self.render_order)
             self.render_order.extend(n for n in graph.nodes if n not in ordered)
             self.event_count = int(data.get("event_count", 0))
+            if int(data.get("version", 1)) < SNAPSHOT_VERSION:
+                self._relayout_v1()
 
     def save_json(self, path: Path) -> None:
         path.write_text(json.dumps(self.serialize(), separators=(",", ":")), encoding="utf-8")

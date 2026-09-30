@@ -6,9 +6,11 @@ import * as THREE from "three";
 import { useBrainSocket } from "../hooks/useBrainSocket";
 import { useBrainStore } from "../store/brainStore";
 import { NeuronField } from "./NeuronField";
-import { RegionShells } from "./RegionShells";
+import { BrainShell } from "./BrainShell";
+import { RegionLabels } from "./RegionLabels";
 import { Fibers } from "./Fibers";
 import { QueryAnimation } from "./QueryAnimation";
+import { BRAIN_CENTER } from "../config/brainConfig";
 
 /** Keeps a failing subtree (e.g. a font that can't load) from unmounting the whole scene. */
 class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -24,8 +26,9 @@ class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: bo
   }
 }
 
+// lateral view: frontal lobe to the right (+x), occipital to the left
 const HOME_POSITION = new THREE.Vector3(0, 6, 22);
-const HOME_TARGET = new THREE.Vector3(0, 0.5, 0);
+const HOME_TARGET = new THREE.Vector3(...BRAIN_CENTER);
 
 /** Drives camera for AUTO-ZOOM phases and the HOME reset button. */
 function CameraRig() {
@@ -59,7 +62,7 @@ function CameraRig() {
     }
     if (goal) {
       camera.position.lerp(goal, Math.min(1, delta * 1.6));
-      controls.target.lerp(new THREE.Vector3(0, 1.5, 0), Math.min(1, delta * 1.6));
+      controls.target.lerp(HOME_TARGET, Math.min(1, delta * 1.6));
       controls.update();
     }
   });
@@ -85,16 +88,18 @@ export function BrainCanvas() {
       <Suspense fallback={null}>
         <NeuronField />
         <Fibers />
+        <BrainShell />
       </Suspense>
       {/* text (fonts) loads in its own boundary: it can never blank the neurons */}
       <SceneErrorBoundary>
         <Suspense fallback={null}>
-          <RegionShells />
+          <RegionLabels />
           <QueryAnimation />
         </Suspense>
       </SceneErrorBoundary>
       <OrbitControls
         makeDefault
+        target={BRAIN_CENTER}
         enableDamping
         dampingFactor={0.08}
         minDistance={6}

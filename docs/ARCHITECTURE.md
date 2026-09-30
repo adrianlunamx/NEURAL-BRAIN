@@ -15,13 +15,13 @@ flowchart TB
         BUS["events.py\nEventBus (una cola por cliente)"]
     end
     subgraph ST["Stores"]
-        GS["graph_store.py\nDiGraph 19k · elipsoides · LOD · fibras"]
+        GS["graph_store.py\nDiGraph 19k · layout anatómico (brain_layout.py) · LOD · fibras"]
         VS["vector_store.py\nChromaDB 'neurons'"]
         GIT["git_store.py\ngraph.json versionado"]
     end
     subgraph FE["frontend — React + R3F :5173"]
         SOCK["useBrainSocket.ts"] --> STORE["brainStore.ts (zustand)\n+ activation / upsert bus"]
-        STORE --> CANVAS["BrainCanvas: NeuronField (2×19k instanced) · RegionShells · Fibers · QueryAnimation"]
+        STORE --> CANVAS["BrainCanvas: NeuronField (2×19k instanced) · BrainShell · RegionLabels · Fibers · QueryAnimation"]
     end
     HOOKS -->|POST /hooks/event| API
     API <--> GS & VS
@@ -37,7 +37,8 @@ flowchart TB
 | Módulo | Qué hace |
 |---|---|
 | `models.py` | Contratos Pydantic (espejados en `frontend/src/types.ts`). |
-| `graph_store.py` | 19.000 neuronas en 8 elipsoides / 6 regiones con presupuesto por región; 2 aristas locales por neurona; 240 fibras entre regiones; **orden de render estratificado proporcional**: en cualquier prefijo cada región aparece en su proporción (frontal 27,4 %…), así cada nivel LOD es un cerebro completo. Cuando está lleno, `add_neuron` **recicla** la neurona semilla menos activada (conserva su posición en el orden). |
+| `../brain_layout.py` | v2: el cerebro como SDF (vista lateral), `classify_regions`, muestreo uniforme en el volumen, generación de `brain_layout.json` y de la cáscara `brain_shell.json` (marching cubes). |
+| `graph_store.py` | 19.000 neuronas sembradas desde `brain_layout.json` (6 regiones como zonas de un mismo volumen; hipocampo la menor); neuronas nuevas muestreadas dentro de su región; snapshots v1 migrados al cargar; 2 aristas locales por neurona; 240 fibras entre regiones; **orden de render estratificado proporcional**: en cualquier prefijo cada región aparece en su proporción (p. ej. el 25 % de cualquier prefijo es frontal), así cada nivel LOD es un cerebro completo. Cuando está lleno, `add_neuron` **recicla** la neurona semilla menos activada (conserva su posición en el orden). |
 | `vector_store.py` | ChromaDB con `sentence-transformers`; `EMBEDDING_BACKEND=hash` usa un embedder de hashing sin descargas. |
 | `git_store.py` | `graph.json` en un repo Git local; commits con el CLI de `git` (sobrevive a Ctrl+C); auto-commit cada 25 eventos / 60 s; `restore(hash)` recarga y vuelve a commitear. |
 | `events.py` | Bus de eventos con **una cola por suscriptor SSE** (el spec usaba una cola compartida que repartía los eventos entre pestañas). |

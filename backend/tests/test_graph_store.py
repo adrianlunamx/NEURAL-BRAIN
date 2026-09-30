@@ -1,6 +1,9 @@
 from collections import Counter
 
-from backend.app.graph_store import LOD_LEVELS, MAX_NEURONS, REGION_BUDGET, GraphStore
+import numpy as np
+
+from backend.app.graph_store import LOD_LEVELS, MAX_NEURONS, GraphStore
+from backend.brain_layout import classify_regions, sdf_brain
 from backend.app.models import EdgeType, Region
 
 
@@ -12,7 +15,8 @@ def seeded() -> GraphStore:
 
 def test_seeds_19000_neurons_with_local_edges_and_fibers():
     g = seeded()
-    assert g.graph.number_of_nodes() == MAX_NEURONS == sum(REGION_BUDGET.values())
+    assert g.graph.number_of_nodes() == MAX_NEURONS
+    assert all(len(ids) > 0 for ids in g.region_index.values())
     types = Counter(d["type"] for _, _, d in g.graph.edges(data=True))
     assert types[EdgeType.LOCAL] > MAX_NEURONS
     assert 200 <= types[EdgeType.FIBER] <= 240
@@ -25,8 +29,8 @@ def test_every_lod_prefix_is_stratified_by_region():
         assert len(nodes) == count
         share = Counter(n["region"] for n in nodes)
         assert len(share) == 6, level
-        for region, budget in REGION_BUDGET.items():
-            expected = count * budget / MAX_NEURONS
+        for region, ids in g.region_index.items():
+            expected = count * len(ids) / MAX_NEURONS
             assert abs(share[region] - expected) <= 1.5, (level, region)
 
 
@@ -44,18 +48,43 @@ def test_add_neuron_recycles_the_stalest_seed_when_full():
     assert nid2 != nid
 
 
-def test_positions_stay_inside_the_region_ellipsoids():
+def test_neurons_live_inside_one_brain_in_their_region():
     g = seeded()
-    from backend.app.graph_store import REGION_ELLIPSOIDS
+    ids = g.render_order[:3000]
+    pts = np.array([g.graph.nodes[i]["position"] for i in ids])
+    assert (sdf_brain(pts) < 1e-3).all()
+    regions = [str(getattr(g.graph.nodes[i]["region"], "value", g.graph.nodes[i]["region"])) for i in ids]
+    assert list(classify_regions(pts)) == regions
 
-    for nid in g.render_order[:2000]:
-        d = g.graph.nodes[nid]
-        x, y, z = d["position"]
-        inside = any(
-            sum(((p - c) / r) ** 2 for p, c, r in zip((x, y, z), e["center"], e["radii"])) <= 1.0001
-            for e in REGION_ELLIPSOIDS[Region(d["region"])]
-        )
-        assert inside, nid
+
+def test_lateral_anatomy():
+    info = {r["region"]: r for r in seeded().get_region_info()}
+    assert info["frontal"]["center"][0] > info["parietal"]["center"][0] > info["occipital"]["center"][0]
+    assert info["cerebellum"]["center"][1] < info["temporal"]["center"][1] < info["parietal"]["center"][1]
+    assert info["hippocampus"]["neuron_count"] == min(r["neuron_count"] for r in info.values())
+
+
+def test_new_neurons_land_inside_the_brain_in_the_requested_region():
+    g = seeded()
+    for region in Region:
+        nid, _ = g.add_neuron(f"hook {region.value}", region, source="hook")
+        p = np.array([g.graph.nodes[nid]["position"]])
+        assert sdf_brain(p)[0] < 0
+        assert classify_regions(p)[0] == region.value
+
+
+def test_v1_snapshot_is_migrated_into_the_anatomical_brain():
+    g = seeded()
+    data = g.serialize()
+    data["version"] = 1
+    for n in data["nodes"]:
+        n["position"] = [40.0, 40.0, 40.0]  # far outside, like the old ellipsoid layout
+    g2 = GraphStore()
+    g2.deserialize(data)
+    pts = np.array([d["position"] for _, d in g2.graph.nodes(data=True)])
+    assert (sdf_brain(pts) < 1e-3).all()
+    assert g2.graph.number_of_edges() == g.graph.number_of_edges()
+    assert g2.serialize()["version"] == 2
 
 
 def test_serialize_roundtrip():
