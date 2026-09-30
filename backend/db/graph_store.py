@@ -9,16 +9,20 @@ from typing import Any
 
 import networkx as nx
 
-from utils.graph_layout import compute_3d_layout
+from utils.brain_shape import BrainShapeLayout, lobe
+from utils.graph_layout import compute_3d_layout, layout_scale
 from utils.logger import logger
 
 NODE_TYPES = {"concept", "fact"}
+TYPE_COLORS = {"concept": "#00f5ff", "fact": "#39ff14"}
 
 
 class GraphStore:
-    def __init__(self, path: Path, layout_iterations: int = 100):
+    def __init__(self, path: Path, layout_iterations: int = 200, layout_mode: str = "brain"):
         self.path = Path(path)
         self.layout_iterations = layout_iterations
+        self.layout_mode = layout_mode if layout_mode in {"brain", "force"} else "brain"
+        self.brain_layout = BrainShapeLayout()
         self.graph = nx.Graph()
         self._positions: dict[str, dict[str, float]] = {}
         self._dirty = True
@@ -32,7 +36,8 @@ class GraphStore:
             raw = json.loads(self.path.read_text())
             self.graph = nx.node_link_graph(raw["graph"], edges="links")
             self._positions = raw.get("positions", {})
-            self._dirty = set(self._positions) != set(self.graph.nodes)
+            stale_mode = raw.get("layout_mode") != self.layout_mode
+            self._dirty = stale_mode or set(self._positions) != set(self.graph.nodes)
             logger.info("Graph loaded: {} nodes, {} edges", self.graph.number_of_nodes(), self.graph.number_of_edges())
         except Exception as exc:
             logger.error("Could not load graph snapshot {} ({}); starting empty", self.path, exc)
@@ -40,7 +45,11 @@ class GraphStore:
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {"graph": nx.node_link_data(self.graph, edges="links"), "positions": self._positions}
+        payload = {
+            "graph": nx.node_link_data(self.graph, edges="links"),
+            "positions": self._positions,
+            "layout_mode": self.layout_mode,
+        }
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps(payload))
         tmp.replace(self.path)
@@ -80,9 +89,16 @@ class GraphStore:
             return None
         return {"id": node_id, **self.graph.nodes[node_id], "degree": self.graph.degree(node_id)}
 
-    def positions(self) -> dict[str, dict[str, float]]:
+    @property
+    def scale(self) -> float:
+        return layout_scale(self.graph.number_of_nodes())
+
+    def positions(self) -> dict[str, dict]:
         if self._dirty:
-            self._positions = compute_3d_layout(self.graph, self.layout_iterations, previous=self._positions)
+            if self.layout_mode == "brain":
+                self._positions = self.brain_layout.compute(self.graph, self.scale, previous=self._positions)
+            else:
+                self._positions = compute_3d_layout(self.graph, self.layout_iterations, previous=self._positions)
             self._dirty = False
             self.save()
         return self._positions
@@ -90,8 +106,8 @@ class GraphStore:
     def node_size(self, node_id: str) -> float:
         data = self.graph.nodes[node_id]
         degree = self.graph.degree(node_id)
-        base = 0.7 if data.get("type") == "concept" else 0.45
-        return round(min(base + 0.06 * degree, 1.5), 3)
+        base = 0.5 if data.get("type") == "concept" else 0.35
+        return round(min(base + 0.04 * degree, 1.0), 3)
 
     def find_connections(self, node_ids: list[str], max_hops: int = 3) -> dict[str, Any]:
         """Paths linking the retrieved nodes, ordered for a cascading animation.
@@ -129,22 +145,42 @@ class GraphStore:
         nodes = []
         for node_id, data in self.graph.nodes(data=True):
             p = pos.get(node_id, {"x": 0.0, "y": 0.0, "z": 0.0})
+            node_type = data.get("type", "fact")
             nodes.append({
                 "id": node_id,
                 "label": data.get("label", node_id),
-                "type": data.get("type", "fact"),
+                "type": node_type,
+                "color": TYPE_COLORS.get(node_type, TYPE_COLORS["fact"]),
+                "region": p.get("region"),
+                "lobe": lobe(p["region"]) if p.get("region") else None,
                 "content": data.get("content", ""),
                 "tags": data.get("tags", []),
-                "position": p,
+                "position": {"x": p["x"], "y": p["y"], "z": p["z"]},
                 "size": self.node_size(node_id),
                 "degree": self.graph.degree(node_id),
                 "created_at": data.get("created_at"),
             })
         edges = [
-            {"from": u, "to": v, "weight": round(d.get("weight", 0.5), 4), "kind": d.get("kind", "semantic")}
+            {
+                "from": u,
+                "to": v,
+                "weight": round(d.get("weight", 0.5), 4),
+                "kind": d.get("kind", "semantic"),
+                "range": BrainShapeLayout.edge_range(pos.get(u, {}).get("region"), pos.get(v, {}).get("region"))
+                if self.layout_mode == "brain" else "local",
+            }
             for u, v, d in self.graph.edges(data=True)
         ]
-        return {"nodes": nodes, "edges": edges}
+        brain = None
+        if self.layout_mode == "brain":
+            brain = {"scale": round(self.scale, 3), "shell": self._shell()}
+        return {"nodes": nodes, "edges": edges, "layout": self.layout_mode, "brain": brain}
+
+    def _shell(self) -> list[list[float]]:
+        scale = round(self.scale, 3)
+        if getattr(self, "_shell_cache", (None,))[0] != scale:
+            self._shell_cache = (scale, BrainShapeLayout.shell_points(scale))
+        return self._shell_cache[1]
 
     def stats(self) -> dict[str, int]:
         types = nx.get_node_attributes(self.graph, "type")

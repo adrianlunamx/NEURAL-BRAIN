@@ -47,7 +47,11 @@ class BrainCore:
         self.settings = settings
         self.embedder = embedder or Embedder(settings.embedding_model, settings.embedding_backend)
         self.vector_db = VectorStore(settings.storage_dir, collection=f"brain-{self.embedder.id}")
-        self.graph = GraphStore(settings.storage_dir / f"graph-{self.embedder.id}.json", settings.layout_iterations)
+        self.graph = GraphStore(
+            settings.storage_dir / f"graph-{self.embedder.id}.json",
+            settings.layout_iterations,
+            settings.layout_mode,
+        )
         self.llm = llm or LLMClient(settings)
         self._lock = asyncio.Lock()
         self._reconcile()
@@ -150,18 +154,25 @@ class BrainCore:
             await asyncio.sleep(SEARCH_DELAY)
         embedding = await asyncio.to_thread(self.embedder.encode, question)
         hits = self.vector_db.query(embedding, n=s.top_k)
+        best = max((h["score"] for h in hits), default=0.0)
         results = []
         for rank, hit in enumerate(hits):
             node = self.graph.node(hit["id"]) or {}
             results.append({
                 "id": hit["id"],
                 "score": round(hit["score"], 4),
+                # relevance relative to the best match (best = 100%)
+                "percentage": int(round(max(hit["score"], 0) / best * 100)) if best > 0 else 0,
                 "rank": rank,
                 "label": node.get("label", hit["metadata"].get("label", hit["id"])),
                 "type": node.get("type", hit["metadata"].get("type", "fact")),
                 "content": hit["document"],
             })
-        yield self._event("search", {"question": question, "nodes": results})
+        yield self._event("search", {
+            "question": question,
+            "nodes": results,
+            "percentages": {r["id"]: r["percentage"] for r in results},
+        })
 
         # CONNECT
         if animate:
@@ -177,7 +188,7 @@ class BrainCore:
 
         yield self._event("synthesize", {
             "answer": llm_result.text.strip(),
-            "sources": [{k: r[k] for k in ("id", "label", "type", "score", "content")} for r in results],
+            "sources": [{k: r[k] for k in ("id", "label", "type", "score", "percentage", "content")} for r in results],
             "model": llm_result.model,
             "offline": llm_result.offline,
             "stop_reason": llm_result.stop_reason,

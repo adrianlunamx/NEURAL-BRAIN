@@ -49,7 +49,8 @@ class Settings:
     top_k: int = 5
     link_threshold: float = 0.35
     max_links_per_node: int = 4
-    layout_iterations: int = 100
+    layout_iterations: int = 200
+    layout_mode: str = "brain"
 
     storage_dir: Path = BACKEND_DIR / "storage"
     cors_origins: list[str] = field(default_factory=lambda: ["http://localhost:5173"])
@@ -75,7 +76,8 @@ def load_settings(**overrides) -> Settings:
         top_k=_int("TOP_K", 5),
         link_threshold=_float("LINK_THRESHOLD", 0.35),
         max_links_per_node=_int("MAX_LINKS_PER_NODE", 4),
-        layout_iterations=_int("LAYOUT_ITERATIONS", 100),
+        layout_iterations=_int("LAYOUT_ITERATIONS", 200),
+        layout_mode=_str("LAYOUT_MODE", "brain").lower(),
         storage_dir=storage,
         cors_origins=[
             o.strip()
