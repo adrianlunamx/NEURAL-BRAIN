@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { API_URL } from "../../config";
 import { actionColor, useNotesStore } from "../../store/notesStore";
 import { basename, ClientBadge, clockTime, pad } from "./common";
+import { EEG_BUFFER, EEG_SAMPLE_HZ, neuralSim } from "../../sim/neuralSim";
 
 /** Compact elapsed time for the log: "ahora", "7m", "2h". */
 function since(ts: number, now: number): string {
@@ -154,11 +155,77 @@ export function Waveform() {
 
   return (
     <div className="waveform">
+      <Eeg />
       <canvas ref={canvas} style={{ width: W, height: H }} />
       <div className="wave-cap">
         <span className={`status st-${status.replace(" ", "-")}`}>{status}</span>
         <span className="cap">máx {peak.toFixed(1)} ev/s · 2 min</span>
       </div>
     </div>
+  );
+}
+
+const EEG_SECONDS = 3;
+const EEG_H = 40;
+
+/**
+ * Simulated EEG of the spiking network, drawn live: alpha (~10 Hz) dominates at
+ * rest and is blocked while the brain works (beta takes over), and population
+ * bursts of the network show up as slow deflections.
+ */
+function Eeg() {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const band = useRef<HTMLSpanElement>(null);
+  const theme = useNotesStore((s) => s.theme);
+
+  useEffect(() => {
+    const c = canvas.current;
+    const ctx = c?.getContext("2d");
+    if (!c || !ctx) return;
+    const css = getComputedStyle(c);
+    const grid = css.getPropertyValue("--rule").trim() || "#1d2326";
+    const trace = css.getPropertyValue("--good").trim() || "#7cf29a";
+    const dpr = window.devicePixelRatio || 1;
+    c.width = W * dpr; c.height = EEG_H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const n = Math.min(EEG_BUFFER, EEG_SECONDS * EEG_SAMPLE_HZ);
+    let raf = 0;
+    let lastBand = "";
+    const draw = () => {
+      raf = requestAnimationFrame(draw);
+      ctx.clearRect(0, 0, W, EEG_H);
+      ctx.strokeStyle = grid;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 1; i < EEG_SECONDS; i++) { const x = Math.round((i * W) / EEG_SECONDS) + 0.5; ctx.moveTo(x, 0); ctx.lineTo(x, EEG_H); }
+      ctx.moveTo(0, EEG_H / 2 + 0.5); ctx.lineTo(W, EEG_H / 2 + 0.5);
+      ctx.stroke();
+      const buf = neuralSim.eeg;
+      const head = neuralSim.eegHead;
+      ctx.strokeStyle = trace;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let k = 0; k < n; k++) {
+        const v = buf[(head - n + k + EEG_BUFFER) % EEG_BUFFER];
+        const x = (k / (n - 1)) * W;
+        const y = EEG_H / 2 - Math.max(-1, Math.min(1, v / 2.2)) * (EEG_H / 2 - 2);
+        if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      const b = neuralSim.arousal > 0.45 ? "β · desincronizado" : "α · reposo";
+      if (b !== lastBand && band.current) { band.current.textContent = b; lastBand = b; }
+    };
+    draw();
+    return () => cancelAnimationFrame(raf);
+  }, [theme]);
+
+  return (
+    <>
+      <canvas ref={canvas} style={{ width: W, height: EEG_H }} />
+      <div className="wave-cap eeg-cap">
+        <span className="status st-trabajando" ref={band}>α · reposo</span>
+        <span className="cap">EEG simulado · {EEG_SECONDS} s</span>
+      </div>
+    </>
   );
 }

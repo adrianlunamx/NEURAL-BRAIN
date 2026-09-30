@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import {
-  BrainStats, Label3D, MAX_NEURONS, NeuronData, Phase, PhasePayload, Ray3D,
+  BrainStats, Label3D, MAX_NEURONS, NeuronData, Phase, PhasePayload, Ray3D, Region,
 } from "../types";
 
 export interface Settings {
@@ -148,4 +148,21 @@ export function onSpark(fn: SparkListener): () => void {
 
 export function emitSpark(position: [number, number, number], amount = 1, radius = 1.2): void {
   sparkListeners.forEach((fn) => fn(position, amount, radius));
+}
+
+// ---------------------------------------------------------------------------
+// Region burst bus: drive input into a whole area (the question reaches the
+// hippocampus, the answer is composed in the frontal lobe...). The spiking
+// network in NeuronDust turns it into activity that spreads on its own.
+// ---------------------------------------------------------------------------
+type RegionBurstListener = (region: Region, fraction: number) => void;
+const regionBurstListeners = new Set<RegionBurstListener>();
+
+export function onRegionBurst(fn: RegionBurstListener): () => void {
+  regionBurstListeners.add(fn);
+  return () => { regionBurstListeners.delete(fn); };
+}
+
+export function emitRegionBurst(region: Region, fraction = 0.1): void {
+  regionBurstListeners.forEach((fn) => fn(region, fraction));
 }

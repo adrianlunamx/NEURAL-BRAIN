@@ -45,8 +45,10 @@ Cuando **Claude Code**, **Cursor**, **Codex** o cualquier otro agente trabaja, l
 ### 🧠 Un cerebro de verdad
 19.000 neuronas como polvo luminoso dentro de un cerebro anatómico en vista lateral: frontal, parietal, temporal, occipital, hipocampo y cerebelo. Tiene piel punteada de corteza, fibras internas, estrellas y bloom, todo en WebGL.
 
-### 🌙 Se enciende al pensar
-En reposo queda en penumbra. Cada acción de un agente dispara neuronas, la activación **se propaga en onda** a sus vecinas y luego se apaga poco a poco. Si lo prefieres siempre iluminado, hay un interruptor.
+### ⚡ Funciona como uno
+Las 19.000 neuronas forman una **red de impulsos**: cada una integra lo que le llega, dispara al cruzar el umbral, queda refractaria un momento y manda el impulso por sus sinapsis, con el retardo de la conducción. Ves los **potenciales de acción viajando por los axones** y por las fibras entre regiones, y una inhibición global evita que la actividad se desborde.
+
+En reposo queda en penumbra, con disparos espontáneos que siguen una onda lenta, y el **EEG simulado** muestra ritmo alfa. Al pensar, el alfa se bloquea y la actividad se enciende. Cada acción de un agente recluta su área: leer va a la corteza visual y temporal, buscar al hipocampo, editar al frontal y compilar al cerebelo. Una pregunta viaja como en un cerebro: se lee, el hipocampo recupera las memorias, estas se asocian entre sí y convergen en el lóbulo frontal para componer la respuesta. Si lo prefieres siempre iluminado, hay un interruptor.
 
 ### ✨ Notas luciérnaga
 Cada nota palpita a su propio ritmo con el color de su grupo, y su tamaño depende del tipo de nota. **D3** (`d3-force-3d`) las acomoda: las atraen sus conexiones y su grupo, y el mismo SDF del backend las mantiene dentro del cerebro.
@@ -266,9 +268,10 @@ Frontend (`frontend/.env`): `VITE_API_URL=http://localhost:8000`.
 
 ```bash
 make test        # backend (pytest), sin red ni API key
+cd frontend && npm run check:sim   # la red de impulsos: reposo, pensar, sin desbordarse, vuelve sola
 ```
 
-Cubren las notas y sus conexiones, los problemas, la actividad (sesiones por agente, subagentes, archivos +/−, estados), los adaptadores de Claude Code, Cursor y Codex y el CLI genérico, el layout anatómico, las fases de las preguntas, el SSE, Git y la API completa. El CI ejecuta además `tsc` y el build del frontend.
+Cubren las notas y sus conexiones, los problemas, la actividad (sesiones por agente, subagentes, archivos +/−, estados), los adaptadores de Claude Code, Cursor y Codex y el CLI genérico, el layout anatómico, las fases de las preguntas, el SSE, Git y la API completa. El CI ejecuta además `tsc`, el build del frontend y `check:sim`.
 
 <details>
 <summary><b>Detalles técnicos: layout anatómico, diferencias con la especificación y problemas comunes</b></summary>

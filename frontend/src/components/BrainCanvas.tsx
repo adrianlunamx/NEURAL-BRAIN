@@ -15,6 +15,7 @@ import { LinksLayer } from "./LinksLayer";
 import { AgentMarkers, markerPositions } from "./AgentMarkers";
 import { PillDecollider } from "./pillLayout";
 import { CameraProbe } from "./CameraReadout";
+import { SpikeTrails } from "./SpikeTrails";
 import { livePositions, useNotesStore } from "../store/notesStore";
 import { ArousalDriver } from "../store/arousal";
 import { BRAIN_CENTER } from "../config/brainConfig";
@@ -153,6 +154,7 @@ export function BrainCanvas() {
       <ambientLight intensity={0.7} />
       <Suspense fallback={null}>
         <NeuronDust />
+        <SpikeTrails />
         <Fibers />
         <BrainShell />
         <ArousalDriver />

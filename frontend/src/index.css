@@ -283,6 +283,8 @@ kbd {
 }
 .waveform canvas { display: block; }
 .wave-cap { display: flex; justify-content: space-between; gap: 12px; padding: 4px 8px; border-top: 1px solid var(--rule); }
+.eeg-cap { border-bottom: 1px solid var(--rule); }
+.eeg-cap .status { text-transform: none; letter-spacing: 0.04em; }
 .wave-cap .status { font-size: 9.5px; }
 .counter {
   position: absolute; right: 16px; bottom: 14px; z-index: 12; font-family: var(--mono); font-size: 10px;

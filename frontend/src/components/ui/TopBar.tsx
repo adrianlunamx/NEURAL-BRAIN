@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useBrainStore } from "../../store/brainStore";
 import { useNotesStore } from "../../store/notesStore";
 import { PROBLEM_LABELS, pad } from "./common";
+import { neuralSim } from "../../sim/neuralSim";
 
 function formatGenerated(iso?: string): string {
   if (!iso) return "cargando…";
@@ -20,6 +21,21 @@ function Clock() {
     <div className="readout clock opt">
       <span className="cap">Hora local</span>
       <span className="v">{pad(now.getHours())}:{pad(now.getMinutes())}:{pad(now.getSeconds())}</span>
+    </div>
+  );
+}
+
+/** Spikes per second of the simulated network (sampled twice a second, no per-frame renders). */
+function SpikeRate() {
+  const [rate, setRate] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setRate(neuralSim.rate), 500);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="readout opt" title="Disparos por segundo de la red simulada">
+      <span className="cap">Disparos</span>
+      <span className="v">{Math.round(rate).toLocaleString("es")}<span className="unit">/s</span></span>
     </div>
   );
 }
@@ -78,6 +94,7 @@ export function TopBar() {
           <span className="cap">Problemas {showProblems ? "▴" : "▾"}</span>
           <span className="v">{pad(problems.length)}</span>
         </button>
+        <SpikeRate />
         <div className="readout opt">
           <span className="cap">Actividad</span>
           <span className="v">{evs.toFixed(1)}<span className="unit">ev/s</span></span>

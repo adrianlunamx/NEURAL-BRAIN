@@ -3,7 +3,8 @@ import { API_URL } from "../config";
 import {
   ActivityEvent, ActivitySnapshot, GraphEdgeDTO, GraphNodeDTO, NeuronData, NotesView, Phase, PhasePayload,
 } from "../types";
-import { emitActivation, emitSpark, useBrainStore } from "../store/brainStore";
+import { emitActivation, emitRegionBurst, emitSpark, useBrainStore } from "../store/brainStore";
+import type { Region } from "../types";
 import { excite } from "../store/arousal";
 import { actionColor, emitNotePulse, livePositions, useNotesStore } from "../store/notesStore";
 
@@ -29,6 +30,25 @@ function notePositions(payload: PhasePayload): PhasePayload {
 }
 
 /** Connects to SSE, translates events into store actions, loads the graph. */
+/**
+ * Which areas an agent action recruits, loosely after their human roles:
+ * reading is visual/language cortex, searching is memory, editing and deciding
+ * is frontal, running routines (build, tests, scripts) is the cerebellum.
+ */
+const ACTION_AREAS: Record<string, Region[]> = {
+  lee: ["occipital", "temporal"],
+  busca: ["hippocampus", "temporal"],
+  edita: ["frontal"],
+  crea: ["frontal"],
+  commit: ["frontal"],
+  git: ["frontal"],
+  piensa: ["frontal", "parietal"],
+  agente: ["parietal"],
+  compila: ["cerebellum"],
+  prueba: ["cerebellum"],
+  script: ["cerebellum"],
+};
+
 export function useBrainSocket() {
   useEffect(() => {
     const es = new EventSource(`${API_URL}/events/stream`);
@@ -50,11 +70,22 @@ export function useBrainSocket() {
       }
       // thinking lights the brain up: the question wakes it, the search sweeps
       // its memories, the notes that answer fire and stay lit for a while
-      if (phase === "INPUT") excite(1);
+      // the cascade follows how a brain answers: the words are read (occipital,
+      // temporal), memory is searched (hippocampus), associations are made
+      // (temporal, parietal) and the answer is composed (frontal)
+      if (phase === "INPUT") {
+        excite(1);
+        emitRegionBurst("occipital", 0.06);
+        emitRegionBurst("temporal", 0.04);
+      }
       if (phase === "SEARCH") {
+        emitRegionBurst("hippocampus", 0.3);
         (payload.targets ?? []).slice(0, 24).forEach((t) => emitSpark(t.position, 0.5, 0.7));
       }
+      if (phase === "SYNTHESIZE") emitRegionBurst("frontal", 0.12);
       if (phase === "CONNECT") {
+        emitRegionBurst("temporal", 0.05);
+        emitRegionBurst("parietal", 0.05);
         const view = useNotesStore.getState().view;
         for (const h of payload.hits ?? []) {
           emitSpark(h.position, 1, 1.4);
@@ -118,6 +149,7 @@ export function useBrainSocket() {
       // every action of an agent wakes the brain a little and fires the neurons
       // around the note it touched
       excite(item.event === "Stop" ? 0 : 0.15);
+      for (const r of ACTION_AREAS[item.action] ?? []) emitRegionBurst(r, 0.025);
       if (item.note_id) {
         emitNotePulse(item.note_id, actionColor(item.action));
         const p = livePositions.get(item.note_id);

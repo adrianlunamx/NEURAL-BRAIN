@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { MAX_NEURONS } from "../types";
-import { onActivation, onNeuronUpsert, onSpark, useBrainStore } from "../store/brainStore";
+import { onActivation, onNeuronUpsert, onRegionBurst, onSpark, useBrainStore } from "../store/brainStore";
 import { arousal } from "../store/arousal";
+import { neuralSim, REGIONS } from "../sim/neuralSim";
 
 const vertex = /* glsl */ `
   attribute vec3 color;
@@ -16,13 +17,17 @@ const vertex = /* glsl */ `
   varying float vAlpha;
   void main() {
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    float up = max(act, 0.0);
+    float down = min(act, 0.0);   // after-hyperpolarisation: dimmer than rest for a moment
     float twinkle = 0.75 + 0.25 * sin(uTime * (0.6 + seed * 1.7) + seed * 40.0);
-    gl_PointSize = (2.1 + act * 5.0) * uPixelRatio * (16.0 / -mv.z);
-    vColor = mix(color, vec3(1.0), 0.35 + act * 0.5);
+    // slow wave travelling front to back (same one that drives spontaneous firing)
+    float slow = 0.72 + 0.28 * sin((position.x * 0.8 + position.y * 0.35) * 0.9 - uTime * 0.9);
+    gl_PointSize = (2.1 + up * 5.0) * uPixelRatio * (16.0 / -mv.z);
+    vColor = mix(color, vec3(1.0, 0.97, 0.9), 0.35 + up * 0.55);
     // at rest only a faint silhouette; the whole field brightens while thinking,
-    // and each fired neuron glows on its own until it fades
-    float rest = mix(0.045, 0.42, uArousal);
-    vAlpha = rest * twinkle + act * 0.95;
+    // and each neuron flashes when it fires
+    float rest = mix(0.045, 0.42, uArousal) * slow;
+    vAlpha = rest * twinkle * (1.0 + down) + up * 0.95;
     gl_Position = projectionMatrix * mv;
   }
 `;
@@ -37,20 +42,26 @@ const fragment = /* glsl */ `
   }
 `;
 
-const CELL = 0.6;           // spatial hash cell (world units)
-const WAVE_SPEED = 3.5;     // units per second: how fast a firing spreads
-const FADE_PER_SECOND = 0.3; // fired neurons fade in ~15 s (exp decay, cut at 0.01)
+/** Neurons an agent or a query touched directly keep glowing, fading over ~15 s. */
+const GLOW_FADE_PER_SECOND = 0.3;
+/** Action potential as the eye sees it (time slowed ~100x): flash, then a dip below rest. */
+const SPIKE_TAU = 0.28;
+const DIP_DEPTH = 0.6;
+const DIP_TAU = 0.7;
+const FORGET_AFTER = 2.5;
 
-interface Pending { i: number; at: number; amount: number }
-
-function cellKey(x: number, y: number, z: number): string {
-  return `${Math.floor(x / CELL)},${Math.floor(y / CELL)},${Math.floor(z / CELL)}`;
+function spikeCurve(t: number): number {
+  if (t < 0) return 0;
+  const flash = Math.exp(-t / SPIKE_TAU);
+  const dip = t < 0.1 ? 0 : -DIP_DEPTH * Math.min(1, (t - 0.1) / 0.2) * Math.exp(-Math.max(0, t - 0.3) / DIP_TAU);
+  return flash + dip;
 }
 
 /**
- * The 19,000 neurons as fine luminous dust that draws the brain.
- * Dark at rest: neurons light up when they fire (hooks, queries) and the firing
- * spreads to their neighbours as a wave, then everything fades back.
+ * The 19,000 neurons as fine luminous dust that draws the brain, driven by a
+ * spiking network (sim/neuralSim.ts): each point flashes when its neuron fires,
+ * dims while it is refractory, and the firing spreads through synapses and
+ * tracts. Hooks, queries and agents inject spikes; the network does the rest.
  * One THREE.Points (1 draw call); no React re-renders on activity.
  */
 export function NeuronDust() {
@@ -59,9 +70,7 @@ export function NeuronDust() {
   const pointsRef = useRef<THREE.Points>(null!);
   const indexOf = useRef(new Map<string, number>());
   const active = useRef(new Set<number>());
-  const grid = useRef(new Map<string, number[]>());
-  const pending = useRef<Pending[]>([]);
-  const clockRef = useRef(0);
+  const glow = useRef(new Float32Array(MAX_NEURONS));
 
   const { geometry, material } = useMemo(() => {
     const g = new THREE.BufferGeometry();
@@ -81,21 +90,15 @@ export function NeuronDust() {
     return { geometry: g, material: m };
   }, []);
 
-  const addToGrid = (i: number, x: number, y: number, z: number) => {
-    const key = cellKey(x, y, z);
-    const list = grid.current.get(key);
-    if (list) list.push(i); else grid.current.set(key, [i]);
-  };
-
-  // (re)build every point from the store after a full graph load
+  // (re)build every point, and the network, from the store after a full graph load
   useEffect(() => {
     const { neurons, neuronOrder } = useBrainStore.getState();
     const pos = geometry.getAttribute("position") as THREE.BufferAttribute;
     const col = geometry.getAttribute("color") as THREE.BufferAttribute;
     const seed = geometry.getAttribute("seed") as THREE.BufferAttribute;
+    const region = new Uint8Array(MAX_NEURONS);
     const c = new THREE.Color();
     indexOf.current.clear();
-    grid.current.clear();
     let i = 0;
     for (const id of neuronOrder) {
       const n = neurons.get(id);
@@ -104,48 +107,31 @@ export function NeuronDust() {
       c.set(n.color);
       col.setXYZ(i, c.r, c.g, c.b);
       seed.setX(i, Math.random());
+      region[i] = Math.max(0, REGIONS.indexOf(n.region));
       indexOf.current.set(id, i);
-      addToGrid(i, n.position[0], n.position[1], n.position[2]);
       i++;
     }
     geometry.setDrawRange(0, i);
     pos.needsUpdate = col.needsUpdate = seed.needsUpdate = true;
     geometry.computeBoundingSphere();
+    // the network shares the position buffer (moved neurons stay in sync)
+    if (i) neuralSim.build(pos.array as Float32Array, region, i);
   }, [geometry, graphVersion]);
 
   useEffect(() => {
-    const act = geometry.getAttribute("act") as THREE.BufferAttribute;
     const pos = geometry.getAttribute("position") as THREE.BufferAttribute;
 
-    const fire = (i: number, amount: number) => {
-      act.setX(i, Math.max(act.getX(i), amount));
-      active.current.add(i);
-    };
-
-    // schedule a wave of firings around a point: nearer neurons fire first and stronger
-    const spark = (p: [number, number, number], amount: number, radius: number) => {
-      const r = Math.ceil(radius / CELL);
-      const cx = Math.floor(p[0] / CELL), cy = Math.floor(p[1] / CELL), cz = Math.floor(p[2] / CELL);
-      for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) for (let dz = -r; dz <= r; dz++) {
-        const list = grid.current.get(`${cx + dx},${cy + dy},${cz + dz}`);
-        if (!list) continue;
-        for (const i of list) {
-          if (Math.random() > 0.65) continue; // not every neuron answers: looks organic
-          const d = Math.hypot(pos.getX(i) - p[0], pos.getY(i) - p[1], pos.getZ(i) - p[2]);
-          if (d > radius) continue;
-          const falloff = Math.pow(1 - d / radius, 1.5);
-          pending.current.push({ i, at: clockRef.current + d / WAVE_SPEED, amount: amount * falloff * (0.5 + Math.random() * 0.5) });
-        }
-      }
-    };
-
+    // an event touched this neuron: it fires now and keeps a long glow
     const offAct = onActivation((id, amount) => {
       const i = indexOf.current.get(id);
       if (i === undefined) return;
-      fire(i, amount);
-      if (amount > 0.5) spark([pos.getX(i), pos.getY(i), pos.getZ(i)], amount * 0.7, 0.9);
+      glow.current[i] = Math.max(glow.current[i], amount);
+      active.current.add(i);
+      neuralSim.inject(i);
+      if (amount > 0.5) neuralSim.stimulateAt([pos.getX(i), pos.getY(i), pos.getZ(i)], 0.9, amount * 0.7);
     });
-    const offSpark = onSpark(spark);
+    const offSpark = onSpark((p, amount, radius) => neuralSim.stimulateAt(p, radius, amount));
+    const offBurst = onRegionBurst((region, fraction) => neuralSim.stimulateRegion(region, fraction));
     const offUpsert = onNeuronUpsert((n) => {
       let i = indexOf.current.get(n.id);
       if (i === undefined) {
@@ -155,39 +141,34 @@ export function NeuronDust() {
         geometry.setDrawRange(0, i + 1);
       }
       pos.setXYZ(i, n.position[0], n.position[1], n.position[2]);
-      addToGrid(i, n.position[0], n.position[1], n.position[2]);
+      neuralSim.moveNeuron(i, n.position[0], n.position[1], n.position[2], Math.max(0, REGIONS.indexOf(n.region)));
       const col = geometry.getAttribute("color") as THREE.BufferAttribute;
       const c = new THREE.Color(n.color);
       col.setXYZ(i, c.r, c.g, c.b);
       pos.needsUpdate = col.needsUpdate = true;
     });
-    return () => { offAct(); offSpark(); offUpsert(); };
+    return () => { offAct(); offSpark(); offBurst(); offUpsert(); };
   }, [geometry]);
 
   useFrame(({ clock }, delta) => {
-    clockRef.current = clock.elapsedTime;
-    material.uniforms.uTime.value = clock.elapsedTime;
+    const now = clock.elapsedTime;
+    material.uniforms.uTime.value = now;
     material.uniforms.uPixelRatio.value = pixelRatio;
     material.uniforms.uArousal.value = arousal.level;
-    const act = geometry.getAttribute("act") as THREE.BufferAttribute;
 
-    // fire the wave fronts that have arrived
-    if (pending.current.length) {
-      const now = clock.elapsedTime;
-      const later: Pending[] = [];
-      for (const p of pending.current) {
-        if (p.at <= now) {
-          act.setX(p.i, Math.max(act.getX(p.i), p.amount));
-          active.current.add(p.i);
-        } else later.push(p);
-      }
-      pending.current = later;
-    }
+    neuralSim.step(now, arousal.level);
+    for (const i of neuralSim.fired) active.current.add(i);
     if (active.current.size === 0) return;
-    const decay = Math.exp(-delta * FADE_PER_SECOND);
+
+    const act = geometry.getAttribute("act") as THREE.BufferAttribute;
+    const g = glow.current;
+    const fade = Math.exp(-delta * GLOW_FADE_PER_SECOND);
+    const last = neuralSim.last;
     for (const i of active.current) {
-      const v = act.getX(i) * decay;
-      if (v < 0.01) { act.setX(i, 0); active.current.delete(i); } else act.setX(i, v);
+      if (g[i] > 0) g[i] = g[i] * fade < 0.01 ? 0 : g[i] * fade;
+      const t = now - last[i];
+      const v = Math.max(g[i], spikeCurve(t));
+      if (g[i] === 0 && t > FORGET_AFTER) { act.setX(i, 0); active.current.delete(i); } else act.setX(i, v);
     }
     act.needsUpdate = true;
   });

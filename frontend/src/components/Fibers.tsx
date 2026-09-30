@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { API_URL } from "../config";
 import { arousal } from "../store/arousal";
+import { neuralSim } from "../sim/neuralSim";
 
 interface FiberDTO {
   source: string;
@@ -27,10 +28,10 @@ uniform float uArousal;
 uniform vec3 uColor;
 varying float vDist;
 void main() {
-  // two pulses travelling along each fiber
-  float wave = fract(vDist * 2.0 - uTime * 0.30);
-  float pulse = smoothstep(0.0, 0.18, wave) * (1.0 - smoothstep(0.18, 0.45, wave));
-  float alpha = (0.10 + 0.55 * pulse) * mix(0.15, 1.0, uArousal);
+  // the tract itself is only a faint bundle of white matter; the spikes that
+  // actually travel along it are drawn by SpikeTrails
+  float ends = smoothstep(0.0, 0.08, vDist) * smoothstep(1.0, 0.92, vDist);
+  float alpha = 0.07 * ends * mix(0.35, 1.0, uArousal);
   gl_FragColor = vec4(uColor, alpha);
 }
 `;
@@ -53,6 +54,8 @@ export function Fibers() {
         return;
       }
       if (!alive) return;
+      // each fiber is a reciprocal tract of the spiking network
+      neuralSim.setTracts(fibers.map((f) => ({ start: f.start, end: f.end })));
       const positions = new Float32Array(fibers.length * 6);
       const dists = new Float32Array(fibers.length * 2);
       fibers.forEach((f, i) => {
