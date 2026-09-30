@@ -1,31 +1,26 @@
+import os
+
 import pytest
-from fastapi.testclient import TestClient
 
-from core.brain import BrainCore
-from core.config import load_settings
-from core.embeddings import Embedder
-
-
-@pytest.fixture()
-def settings(tmp_path):
-    return load_settings(
-        anthropic_api_key=None,           # offline mode: no network in tests
-        embedding_backend="hash",
-        storage_dir=tmp_path / "storage",
-        layout_iterations=30,
-    )
+# Offline, fast, isolated: no model download, no Claude calls.
+os.environ["EMBEDDING_BACKEND"] = "hash"
+os.environ["ANTHROPIC_API_KEY"] = ""
 
 
 @pytest.fixture()
-def brain(settings):
-    return BrainCore(settings, embedder=Embedder(backend="hash"))
+def fast_phases(monkeypatch):
+    from backend.app import query_engine
+
+    monkeypatch.setattr(query_engine, "TIMINGS", {"INPUT": 0.01, "SEARCH": 0.01, "CONNECT": 0.01, "SYNTHESIZE": 0.01})
 
 
 @pytest.fixture()
-def client(brain):
-    import main
+def client(tmp_path, monkeypatch, fast_phases):
+    from fastapi.testclient import TestClient
 
-    main.app.state.brain = brain
+    from backend.app import main
+
+    monkeypatch.setattr(main, "CHROMA_DIR", tmp_path / "chroma")
+    monkeypatch.setattr(main, "GRAPH_REPO_DIR", tmp_path / "graph_repo")
     with TestClient(main.app) as c:
         yield c
-    main.app.state.brain = None
