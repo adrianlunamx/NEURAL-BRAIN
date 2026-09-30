@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { API_URL } from "../config";
+import { arousal } from "../store/arousal";
 
 interface FiberDTO {
   source: string;
@@ -22,13 +23,14 @@ void main() {
 
 const fiberFragment = /* glsl */ `
 uniform float uTime;
+uniform float uArousal;
 uniform vec3 uColor;
 varying float vDist;
 void main() {
   // two pulses travelling along each fiber
   float wave = fract(vDist * 2.0 - uTime * 0.30);
   float pulse = smoothstep(0.0, 0.18, wave) * (1.0 - smoothstep(0.18, 0.45, wave));
-  float alpha = 0.10 + 0.55 * pulse;
+  float alpha = (0.10 + 0.55 * pulse) * mix(0.15, 1.0, uArousal);
   gl_FragColor = vec4(uColor, alpha);
 }
 `;
@@ -72,6 +74,7 @@ export function Fibers() {
         uniforms: {
           uTime: { value: 0 },
           uColor: { value: new THREE.Color("#cfe6ff") },
+          uArousal: { value: 0 },
         },
         transparent: true,
         blending: THREE.AdditiveBlending,
@@ -82,6 +85,7 @@ export function Fibers() {
 
   useFrame(({ clock }) => {
     material.uniforms.uTime.value = clock.elapsedTime;
+    material.uniforms.uArousal.value = arousal.level;
   });
 
   return (

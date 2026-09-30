@@ -17,6 +17,7 @@
 | | |
 |---|---|
 | 🧠 **Cerebro anatómico** | Un solo cerebro en vista lateral (frontal a la derecha, cerebelo bajo el occipital). La placa de video dibuja las **19.000 neuronas como polvo luminoso**, la piel punteada de la corteza, las fibras internas y las estrellas, con bloom, en una sola llamada por capa. |
+| 🌙 **Se enciende al pensar** | En reposo el cerebro queda en penumbra (solo la silueta). Cada acción de Claude Code o pregunta lo despierta: las neuronas disparan y la activación se **propaga en onda** a sus vecinas, las notas usadas y sus conexiones se encienden, y todo se va apagando en unos segundos. Interruptor **Siempre encendido** en la barra superior. |
 | 🗂 **Notas conectadas** | Cada memoria es una **nota** con título, grupo, tipo (instrucciones, índice, usuario, feedback, proyecto, referencia, documento, handoff), ruta y etiquetas. El backend las **conecta** solas: `[[wiki]]`, enlaces `[..](ruta)`, índices, respuestas a preguntas, menciones de títulos, misma carpeta, cadenas en el tiempo, etiquetas compartidas y vecinos semánticos (sugerida / parecida). Detecta **problemas**: enlaces rotos, notas huérfanas y duplicados. |
 | 🕸 **Layout D3** | `d3-force-3d` acomoda cada nota como una neurona: la atraen sus conexiones y su grupo (cada grupo es una zona del cerebro) y el mismo SDF del backend la mantiene dentro del volumen. Cada nota es una **luciérnaga** que palpita a su propio ritmo, con el color de su **grupo** (o de su **uso**) y el tamaño según su tipo; conexiones curvas agrupadas, con trazo según el tipo. |
 | 🔎 **Memoria semántica** | Cada nota, evento de Claude Code o pregunta tiene embedding en ChromaDB. |
@@ -96,6 +97,7 @@ El script usa sólo la stdlib, tiene timeout de 2 s y nunca falla de forma visib
 | Grupos · Tipos · Conexiones | barra lateral | Mostrar/ocultar por grupo, tipo de nota o tipo de conexión (`todos` / `ninguno`) |
 | Grafo · Lista | arriba a la izquierda | Cerebro 3D o tabla ordenable de notas (clic → abre la nota en el grafo) |
 | Grupos · Uso | arriba a la izquierda | Color de las notas por grupo o por cuánto las tocan los agentes |
+| Siempre encendido | barra superior | Apagado (por defecto): el cerebro reposa a oscuras y se ilumina al pensar. Encendido: siempre iluminado |
 | Animaciones | barra superior · `A` | Rotación y pulsos por las conexiones |
 | problemas | barra superior | Enlaces rotos, notas sin conexiones y duplicados (clic → la nota) |
 | + · − · Encuadrar · Reacomodar · Seguir | abajo · `F` encuadra | Zoom, encuadrar todas las notas, recalcular el layout D3, cámara que sigue al agente activo |

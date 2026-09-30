@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { FONT_URL } from "../config";
 import { useBrainStore } from "../store/brainStore";
 import { livePositions, searchMatches, useNotesStore, visibleNotes } from "../store/notesStore";
+import { lit } from "../store/arousal";
 import { resolveLabelCollisions, ScreenLabelInput, V3 } from "./labelLayout2D";
 
 const GROUP_FONT = 0.22;
@@ -121,7 +122,7 @@ export function FloatingLabels() {
             fontSize={l.fontSize}
             letterSpacing={l.kind === "group" ? 0.16 : 0}
             color={l.color}
-            fillOpacity={l.kind === "note" ? 0.7 : 1}
+            fillOpacity={(l.kind === "note" ? 0.7 : 1) * (l.kind === "hit" || l.kind === "focus" ? 1 : lit(0.35))}
             anchorX="center"
             anchorY="middle"
             outlineWidth={l.kind === "group" ? 0.012 : 0.018}

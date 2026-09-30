@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef } from "react";
 import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
-  livePositions, onNotePulse, searchMatches, useNotesStore, visibleNotes,
+  livePositions, noteAwake, onNotePulse, searchMatches, useNotesStore, visibleNotes,
 } from "../store/notesStore";
+import { arousal } from "../store/arousal";
 import { useBrainStore } from "../store/brainStore";
 import { Note, NoteType } from "../types";
 
@@ -49,8 +50,10 @@ const vertex = /* glsl */ `
   attribute float phase;
   attribute float emphasis;
   attribute float pulse;
+  attribute float awake;
   uniform float uScale;
   uniform float uTime;
+  uniform float uArousal;
   varying vec3 vColor;
   varying float vGlow;
   varying float vEmphasis;
@@ -64,8 +67,12 @@ const vertex = /* glsl */ `
     float s2 = 0.5 + 0.5 * sin(uTime * w * 2.63 + phase * 1.7 + 1.3);
     float blink = pow(s1, 3.0) * (0.55 + 0.45 * s2);
     float glow = 0.22 + 0.78 * blink; // never fully dark: a dim ember remains
+    // asleep until used: a note an agent/query just touched (or hovered, found)
+    // shines fully; the rest follow how awake the whole brain is
+    float wake = max(awake, max(uArousal * 0.6, step(1.5, emphasis)));
+    glow *= mix(0.16, 1.0, wake);
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = size * (0.85 + 0.35 * blink)
+    gl_PointSize = size * mix(0.7, 1.0, wake) * (0.85 + 0.35 * blink)
       * (1.0 + pulse * 1.2 + max(emphasis - 1.0, 0.0) * 0.5)
       * uScale / -mv.z;
     vColor = color;
@@ -121,6 +128,10 @@ export function NotesAnimator() {
       p.z += (t[2] - p.z) * k;
     }
     for (const id of livePositions.keys()) if (!targets.has(id)) livePositions.delete(id);
+    const fade = Math.exp(-delta * 0.12);
+    for (const [id, v] of noteAwake) {
+      if (v * fade < 0.02) noteAwake.delete(id); else noteAwake.set(id, v * fade);
+    }
   });
   return null;
 }
@@ -150,7 +161,7 @@ export function FireflyNotes() {
   const material = useMemo(() => new THREE.ShaderMaterial({
     vertexShader: vertex,
     fragmentShader: fragment,
-    uniforms: { uScale: { value: 700 }, uTime: { value: 0 } },
+    uniforms: { uScale: { value: 700 }, uTime: { value: 0 }, uArousal: { value: 0 } },
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -165,6 +176,7 @@ export function FireflyNotes() {
     g.setAttribute("phase", new THREE.BufferAttribute(new Float32Array(n), 1));
     g.setAttribute("emphasis", new THREE.BufferAttribute(new Float32Array(n), 1));
     g.setAttribute("pulse", new THREE.BufferAttribute(new Float32Array(n), 1));
+    g.setAttribute("awake", new THREE.BufferAttribute(new Float32Array(n), 1));
     return g;
   }, [notes]);
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -204,10 +216,13 @@ export function FireflyNotes() {
     material.uniforms.uScale.value = size.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov ?? 50) / 2));
     const pos = geometry.getAttribute("position") as THREE.BufferAttribute;
     const pul = geometry.getAttribute("pulse") as THREE.BufferAttribute;
+    const awk = geometry.getAttribute("awake") as THREE.BufferAttribute;
+    material.uniforms.uArousal.value = arousal.level;
     const decay = Math.exp(-delta * 0.8);
     notes.forEach((n, i) => {
       const p = livePositions.get(n.id);
       if (p) pos.setXYZ(i, p.x, p.y, p.z);
+      awk.setX(i, noteAwake.get(n.id) ?? 0);
       const v = pulses.current.get(n.id) ?? 0;
       pul.setX(i, v);
       if (v > 0) {
@@ -215,7 +230,7 @@ export function FireflyNotes() {
         if (next < 0.02) pulses.current.delete(n.id); else pulses.current.set(n.id, next);
       }
     });
-    pos.needsUpdate = pul.needsUpdate = true;
+    pos.needsUpdate = pul.needsUpdate = awk.needsUpdate = true;
     if (frame.current++ % 30 === 0) geometry.computeBoundingSphere();
   });
 

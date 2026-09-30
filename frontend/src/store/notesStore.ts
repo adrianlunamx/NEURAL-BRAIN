@@ -149,8 +149,15 @@ export function onNotePulse(fn: PulseListener): () => void {
 }
 
 export function emitNotePulse(noteId: string, color: string): void {
+  noteAwake.set(noteId, 1);
   pulseListeners.forEach((fn) => fn(noteId, color));
 }
+
+/**
+ * How awake each note is (1 = just used, fades to 0 in ~20 s; NotesAnimator
+ * decays it). Asleep notes and their connections stay dim.
+ */
+export const noteAwake = new Map<string, number>();
 
 /** UI colour of each action verb (panel, markers, pulses). */
 export const ACTION_COLORS: Record<string, string> = {

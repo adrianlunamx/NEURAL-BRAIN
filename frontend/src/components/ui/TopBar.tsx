@@ -18,6 +18,7 @@ export function TopBar() {
   const setShowProblems = useNotesStore((s) => s.setShowProblems);
   const select = useNotesStore((s) => s.select);
   const anim = useBrainStore((s) => s.settings.anim);
+  const alwaysLit = useBrainStore((s) => s.settings.alwaysLit);
   const updateSettings = useBrainStore((s) => s.updateSettings);
   const problems = view?.problems ?? [];
   const titleOf = new Map(view?.notes.map((n) => [n.id, n.title]) ?? []);
@@ -40,6 +41,10 @@ export function TopBar() {
         <button className={`problems${problems.length ? " has" : ""}`} onClick={() => setShowProblems(!showProblems)}>
           {problems.length} {problems.length === 1 ? "problema" : "problemas"}
         </button>
+        <label className="switch" title="Si está apagado, el cerebro reposa a oscuras y se ilumina al pensar">
+          <input type="checkbox" checked={alwaysLit} onChange={() => updateSettings({ alwaysLit: !alwaysLit })} />
+          <span className="knob" /> Siempre encendido
+        </label>
         <label className="switch" title="Animaciones (A)">
           <input type="checkbox" checked={anim} onChange={() => updateSettings({ anim: !anim })} />
           <span className="knob" /> Animaciones

@@ -3,7 +3,8 @@ import { API_URL } from "../config";
 import {
   ActivityEvent, ActivitySnapshot, GraphEdgeDTO, GraphNodeDTO, NeuronData, NotesView, Phase, PhasePayload,
 } from "../types";
-import { emitActivation, useBrainStore } from "../store/brainStore";
+import { emitActivation, emitSpark, useBrainStore } from "../store/brainStore";
+import { excite } from "../store/arousal";
 import { actionColor, emitNotePulse, livePositions, useNotesStore } from "../store/notesStore";
 
 /**
@@ -47,6 +48,20 @@ export function useBrainSocket() {
         get().clearQueryFx();
         get().setQueryNeuron(null);
       }
+      // thinking lights the brain up: the question wakes it, the search sweeps
+      // its memories, the notes that answer fire and stay lit for a while
+      if (phase === "INPUT") excite(1);
+      if (phase === "SEARCH") {
+        (payload.targets ?? []).slice(0, 24).forEach((t) => emitSpark(t.position, 0.5, 0.7));
+      }
+      if (phase === "CONNECT") {
+        const view = useNotesStore.getState().view;
+        for (const h of payload.hits ?? []) {
+          emitSpark(h.position, 1, 1.4);
+          const note = view?.notes.find((n) => n.neuron_ids.includes(h.id));
+          if (note) emitNotePulse(note.id, "#ffffff");
+        }
+      }
       get().setPhase(phase, payload);
       get().setStats({ phase });
     };
@@ -54,6 +69,7 @@ export function useBrainSocket() {
     const onNeuronActivated = (e: MessageEvent) => {
       const p = JSON.parse(e.data).payload as { id: string; amount: number };
       emitActivation(p.id, p.amount); // fast path, no react render
+      excite(0.02);
       const n = get().neurons.get(p.id);
       if (n) n.activation = p.amount;
     };
@@ -99,7 +115,14 @@ export function useBrainSocket() {
     const onActivity = (e: MessageEvent) => {
       const item = JSON.parse(e.data).payload as ActivityEvent;
       useNotesStore.getState().pushActivity(item);
-      if (item.note_id) emitNotePulse(item.note_id, actionColor(item.action));
+      // every action of an agent wakes the brain a little and fires the neurons
+      // around the note it touched
+      excite(item.event === "Stop" ? 0 : 0.15);
+      if (item.note_id) {
+        emitNotePulse(item.note_id, actionColor(item.action));
+        const p = livePositions.get(item.note_id);
+        if (p) emitSpark([p.x, p.y, p.z], 1, 1.5);
+      }
       scheduleActivity();
     };
 
