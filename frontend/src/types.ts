@@ -99,3 +99,113 @@ export const REGION_COLORS: Record<Region, string> = {
 };
 
 export const MAX_NEURONS = 19000;
+
+// ---------------------------------------------------------------------------
+// Notes (memories) and live activity — mirror of backend/app/notes.py + activity.py
+// ---------------------------------------------------------------------------
+export type NoteType =
+  | "instrucciones" | "indice" | "usuario" | "feedback"
+  | "proyecto" | "referencia" | "documento" | "handoff";
+
+export type LinkType =
+  | "wiki" | "indice" | "enlace" | "responde" | "mencion"
+  | "carpeta" | "cadena" | "sugerida" | "parecida" | "comparte";
+
+export interface Note {
+  id: string;
+  title: string;
+  group: string;
+  type: NoteType;
+  text: string;
+  tags: string[];
+  path: string;
+  source: "ingest" | "query";
+  created_at: string;
+  region: Region;
+  neuron_ids: string[];
+  position: [number, number, number];
+  degree: number;
+}
+
+export interface NoteLink {
+  source: string;
+  target: string;
+  type: LinkType;
+  weight: number;
+}
+
+export interface NoteGroup {
+  name: string;
+  color: string;
+  region: Region;
+  anchor: [number, number, number];
+  count: number;
+}
+
+export interface NoteProblem {
+  kind: "enlace_roto" | "huerfana" | "duplicado";
+  note_id: string;
+  detail: string;
+}
+
+export interface NotesView {
+  notes: Note[];
+  links: NoteLink[];
+  groups: NoteGroup[];
+  types: Record<NoteType, number>;
+  link_types: Record<LinkType, number>;
+  problems: NoteProblem[];
+  generated_at: string;
+}
+
+export interface ActivityEvent {
+  id: string;
+  ts: number;
+  event: string;
+  session_id: string;
+  project: string;
+  agent: string;
+  agent_label: string;
+  agent_num: number;
+  action: string;
+  target: string;
+  summary: string;
+  note_id: string | null;
+  lines_added: number;
+  lines_removed: number;
+}
+
+export interface AgentInfo {
+  key: string;
+  num: number;
+  label: string;
+  kind: string;
+  description: string;
+  actions: number;
+  last_action: string;
+  last_target: string;
+  last_note: string | null;
+  last_at: number;
+  done: boolean;
+}
+
+export interface SessionInfo {
+  id: string;
+  project: string;
+  status: "trabajando" | "pensando" | "esperando" | "en reposo";
+  detail: string;
+  last_at: number;
+  main: AgentInfo;
+  agents: AgentInfo[];
+  active_agents: number;
+}
+
+export interface ActivitySnapshot {
+  now: number;
+  sessions: SessionInfo[];
+  events: ActivityEvent[];
+  files: { path: string; project: string; added: number; removed: number; last_at: number }[];
+  rate: number[];
+  totals: Record<string, number>;
+  note_usage: Record<string, number>;
+}

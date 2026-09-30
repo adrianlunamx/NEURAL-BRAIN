@@ -1,15 +1,19 @@
-import { Component, ReactNode, Suspense, useEffect, useRef } from "react";
+import { Component, ReactNode, Suspense, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, Stars } from "@react-three/drei";
 import { Bloom, DepthOfField, EffectComposer } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { useBrainSocket } from "../hooks/useBrainSocket";
 import { useBrainStore } from "../store/brainStore";
-import { NeuronField } from "./NeuronField";
+import { NeuronDust } from "./NeuronDust";
 import { BrainShell } from "./BrainShell";
 import { FloatingLabels } from "./FloatingLabels";
 import { Fibers } from "./Fibers";
 import { QueryAnimation } from "./QueryAnimation";
+import { NotesAnimator, NotesLayer } from "./NotesLayer";
+import { LinksLayer } from "./LinksLayer";
+import { AgentMarkers, markerPositions } from "./AgentMarkers";
+import { livePositions, useNotesStore } from "../store/notesStore";
 import { BRAIN_CENTER } from "../config/brainConfig";
 
 /** Keeps a failing subtree (e.g. a font that can't load) from unmounting the whole scene. */
@@ -27,7 +31,7 @@ class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: bo
 }
 
 // lateral view: frontal lobe to the right (+x), occipital to the left
-const HOME_POSITION = new THREE.Vector3(0, 6, 22);
+const HOME_POSITION = new THREE.Vector3(0.4, 3.2, 14.5);
 const HOME_TARGET = new THREE.Vector3(...BRAIN_CENTER);
 
 /** Drives camera for AUTO-ZOOM phases and the HOME reset button. */
@@ -49,7 +53,32 @@ function CameraRig() {
     controls?.update();
   }, [resetToken, camera, controls]);
 
+  // + / − / Encuadrar from the graph controls
+  const camCmd = useNotesStore((s) => s.camera);
+  useEffect(() => {
+    if (!camCmd || !controls) return;
+    const offset = camera.position.clone().sub(controls.target);
+    if (camCmd.command === "in") offset.multiplyScalar(0.8);
+    if (camCmd.command === "out") offset.multiplyScalar(1.25);
+    if (camCmd.command === "fit") {
+      const box = new THREE.Box3();
+      livePositions.forEach((p) => box.expandByPoint(p));
+      const sphere = box.isEmpty() ? new THREE.Sphere(HOME_TARGET.clone(), 6) : box.getBoundingSphere(new THREE.Sphere());
+      controls.target.copy(sphere.center);
+      offset.normalize().multiplyScalar(Math.max(8, sphere.radius * 2.6));
+    }
+    camera.position.copy(controls.target).add(offset);
+    controls.update();
+  }, [camCmd, camera, controls]);
+
   useFrame((_, delta) => {
+    // "Seguir": keep the most recently active agent in the centre
+    const follow = useNotesStore.getState().follow;
+    if (follow && controls && markerPositions.size) {
+      const last = [...markerPositions.values()].pop()!;
+      controls.target.lerp(last, Math.min(1, delta * 1.5));
+      controls.update();
+    }
     if (!autoZoom || !controls) return;
     let goal: THREE.Vector3 | null = null;
     if (phase === "INPUT" || phase === "SEARCH") {
@@ -69,6 +98,38 @@ function CameraRig() {
   return null;
 }
 
+const skyVertex = /* glsl */ `
+  varying vec3 vDir;
+  void main() {
+    vDir = normalize(position);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+const skyFragment = /* glsl */ `
+  varying vec3 vDir;
+  void main() {
+    float h = vDir.y * 0.5 + 0.5;
+    vec3 top = vec3(0.004, 0.006, 0.028);
+    vec3 mid = vec3(0.016, 0.009, 0.045);
+    vec3 low = vec3(0.002, 0.002, 0.012);
+    vec3 c = mix(low, mid, smoothstep(0.0, 0.5, h));
+    c = mix(c, top, smoothstep(0.5, 1.0, h));
+    gl_FragColor = vec4(c, 1.0);
+  }
+`;
+
+/** Deep blue-violet gradient behind the stars. */
+function Sky() {
+  const material = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: skyVertex, fragmentShader: skyFragment, side: THREE.BackSide, depthWrite: false,
+  }), []);
+  return (
+    <mesh material={material} renderOrder={-10} raycast={() => null}>
+      <sphereGeometry args={[150, 32, 16]} />
+    </mesh>
+  );
+}
+
 export function BrainCanvas() {
   useBrainSocket();
   const anim = useBrainStore((s) => s.settings.anim);
@@ -79,16 +140,22 @@ export function BrainCanvas() {
     <Canvas
       camera={{ position: HOME_POSITION.toArray(), fov: 50, near: 0.1, far: 200 }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
+      raycaster={{ params: { Points: { threshold: 0.22 } } as unknown as THREE.RaycasterParameters }}
+      onPointerMissed={() => useNotesStore.getState().select(null)}
       dpr={[1, 2]}
     >
-      <color attach="background" args={["#05060a"]} />
-      <fog attach="fog" args={["#05060a", 32, 75]} />
+      <color attach="background" args={["#060817"]} />
+      <Sky />
+      <Stars radius={70} depth={45} count={3500} factor={2.6} saturation={0.5} fade speed={0.4} />
       <ambientLight intensity={0.7} />
-      <pointLight position={[10, 12, 10]} intensity={0.6} />
       <Suspense fallback={null}>
-        <NeuronField />
+        <NeuronDust />
         <Fibers />
         <BrainShell />
+        <NotesAnimator />
+        <LinksLayer />
+        <NotesLayer />
+        <AgentMarkers />
       </Suspense>
       {/* text (fonts) loads in its own boundary: it can never blank the neurons */}
       <SceneErrorBoundary>
@@ -102,17 +169,17 @@ export function BrainCanvas() {
         target={BRAIN_CENTER}
         enableDamping
         dampingFactor={0.08}
-        minDistance={6}
+        minDistance={4}
         maxDistance={45}
         autoRotate={anim}
-        autoRotateSpeed={0.55}
+        autoRotateSpeed={0.35}
       />
       <CameraRig />
       {bloom && (
         <EffectComposer multisampling={0}>
           <Bloom
-            intensity={1.15}
-            luminanceThreshold={0.32}
+            intensity={1.25}
+            luminanceThreshold={0.22}
             luminanceSmoothing={0.2}
             mipmapBlur
           />
