@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
@@ -6,6 +6,7 @@ import { actionColor, livePositions, useNotesStore } from "../store/notesStore";
 import { AgentInfo, SessionInfo } from "../types";
 import { BRAIN_CENTER, sdfBrain } from "../config/brainConfig";
 import { clientInfo } from "./ui/common";
+import { pills } from "./pillLayout";
 
 /** Agents that acted within this window get a marker. */
 const ACTIVE_SECONDS = 90;
@@ -61,6 +62,12 @@ function AgentMarker({ session, agent, hub, now }: {
 
   const ctrl = useMemo(() => new THREE.Vector3(), []);
   const p = useMemo(() => new THREE.Vector3(), []);
+  const chip = useRef<HTMLDivElement>(null);
+  const fresh = now - agent.last_at < 4;
+
+  // the chip lives in drei's own <Html> root: register it (for PillDecollider)
+  // from the frame loop once it exists, and drop it on unmount
+  useEffect(() => () => { pills.delete(`agent:${key}`); }, [key]);
 
   useFrame((_, delta) => {
     const noteId = agent.last_note ?? fallback;
@@ -69,6 +76,13 @@ function AgentMarker({ session, agent, hub, now }: {
     pos.current.lerp(target, 1 - Math.exp(-delta * 2.5));
     group.current.position.copy(pos.current);
     markerPositions.set(key, pos.current);
+    const pill = pills.get(`agent:${key}`);
+    if (pill) {
+      pill.world.copy(pos.current);
+      pill.priority = fresh ? 2 : 1;
+    } else if (chip.current) {
+      pills.set(`agent:${key}`, { el: chip.current, world: pos.current.clone(), priority: fresh ? 2 : 1, lift: 14 });
+    }
     // arc from the session hub to the marker, lifted in the middle
     ctrl.copy(hub).add(pos.current).multiplyScalar(0.5);
     ctrl.y += 0.6 + hub.distanceTo(pos.current) * 0.15;
@@ -86,23 +100,41 @@ function AgentMarker({ session, agent, hub, now }: {
     attr.needsUpdate = true;
   });
 
-  const fresh = now - agent.last_at < 4;
   const label = agent.num === 0 ? "principal" : `#${agent.num}`;
   return (
     <>
       <primitive object={line} />
       <group ref={group}>
         <mesh>
-          <sphereGeometry args={[fresh ? 0.13 : 0.09, 16, 16]} />
+          <sphereGeometry args={[fresh ? 0.1 : 0.07, 16, 16]} />
           <meshBasicMaterial color={color} toneMapped={false} />
         </mesh>
         <Html center zIndexRange={[20, 10]} style={{ pointerEvents: "none" }}>
-          <div className={`agent-pill${fresh ? " fresh" : ""}`} style={{ borderColor: color }}>
+          <div ref={chip} className={`agent-pill${fresh ? " fresh" : ""}`} style={{ borderColor: color }}>
             <b>{label}</b> · <span style={{ color }}>{agent.last_action || "…"}</span>
           </div>
         </Html>
       </group>
     </>
+  );
+}
+
+function HubChip({ id, hub, text, sub, color }: {
+  id: string; hub: THREE.Vector3; text: string; sub: string; color: string;
+}) {
+  const chip = useRef<HTMLDivElement>(null);
+  useEffect(() => () => { pills.delete(`hub:${id}`); }, [id]);
+  useFrame(() => {
+    const pill = pills.get(`hub:${id}`);
+    if (pill) pill.world.copy(hub);
+    else if (chip.current) pills.set(`hub:${id}`, { el: chip.current, world: hub.clone(), priority: 3, lift: 16 });
+  });
+  return (
+    <Html center zIndexRange={[20, 10]} style={{ pointerEvents: "none" }}>
+      <div ref={chip} className="hub-pill">
+        {text} <span style={{ color }}>· {sub}</span>
+      </div>
+    </Html>
   );
 }
 
@@ -118,20 +150,18 @@ export function AgentMarkers() {
       {sessions.map((s, i) => {
         const hub = hubPosition(i);
         const agents = [s.main, ...s.agents].filter(
-          (a) => a.last_action && !a.done && now - a.last_at < ACTIVE_SECONDS,
+          // finished agents ("fin") leave the brain: fewer, more meaningful chips
+          (a) => a.last_action && a.last_action !== "fin" && !a.done && now - a.last_at < ACTIVE_SECONDS,
         );
         return (
           <group key={s.id}>
             <group position={hub}>
               <mesh>
-                <sphereGeometry args={[0.12, 20, 20]} />
+                <sphereGeometry args={[0.09, 20, 20]} />
                 <meshBasicMaterial color="#ffd27a" toneMapped={false} />
               </mesh>
-              <Html center zIndexRange={[20, 10]} style={{ pointerEvents: "none" }}>
-                <div className="hub-pill">
-                  {s.project} <span style={{ color: clientInfo(s.client).color }}>· {clientInfo(s.client).label}</span>
-                </div>
-              </Html>
+              <HubChip id={s.id} hub={hub} text={s.project}
+                sub={clientInfo(s.client).label} color={clientInfo(s.client).color} />
             </group>
             {agents.map((a) => (
               <AgentMarker key={a.key} session={s} agent={a} hub={hub} now={now} />
