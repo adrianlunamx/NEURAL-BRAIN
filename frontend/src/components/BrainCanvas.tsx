@@ -14,7 +14,7 @@ import { NotesAnimator, FireflyNotes } from "./FireflyNotes";
 import { LinksLayer } from "./LinksLayer";
 import { AgentMarkers, markerPositions } from "./AgentMarkers";
 import { livePositions, useNotesStore } from "../store/notesStore";
-import { ArousalDriver } from "../store/arousal";
+import { ArousalDriver, arousal } from "../store/arousal";
 import { BRAIN_CENTER } from "../config/brainConfig";
 
 /** Keeps a failing subtree (e.g. a font that can't load) from unmounting the whole scene. */
@@ -107,23 +107,30 @@ const skyVertex = /* glsl */ `
   }
 `;
 const skyFragment = /* glsl */ `
+  uniform float uWarm;
   varying vec3 vDir;
   void main() {
     float h = vDir.y * 0.5 + 0.5;
+    // neon: deep blue-violet night
     vec3 top = vec3(0.004, 0.006, 0.028);
     vec3 mid = vec3(0.016, 0.009, 0.045);
     vec3 low = vec3(0.002, 0.002, 0.012);
-    vec3 c = mix(low, mid, smoothstep(0.0, 0.5, h));
-    c = mix(c, top, smoothstep(0.5, 1.0, h));
-    gl_FragColor = vec4(c, 1.0);
+    vec3 neon = mix(mix(low, mid, smoothstep(0.0, 0.5, h)), top, smoothstep(0.5, 1.0, h));
+    // organic: warm dark room with a soft spotlight from above
+    vec3 room = mix(vec3(0.004, 0.003, 0.002), vec3(0.018, 0.012, 0.008), smoothstep(0.1, 0.9, h));
+    float spot = pow(max(dot(vDir, normalize(vec3(0.0, 1.0, 0.35))), 0.0), 5.0);
+    vec3 organic = room + vec3(0.09, 0.06, 0.035) * spot;
+    gl_FragColor = vec4(mix(neon, organic, uWarm), 1.0);
   }
 `;
 
-/** Deep blue-violet gradient behind the stars. */
+/** Background: blue-violet night (neon) or a warm dark room with a spotlight (organic). */
 function Sky() {
   const material = useMemo(() => new THREE.ShaderMaterial({
     vertexShader: skyVertex, fragmentShader: skyFragment, side: THREE.BackSide, depthWrite: false,
+    uniforms: { uWarm: { value: 1 } },
   }), []);
+  useFrame(() => { material.uniforms.uWarm.value = arousal.warm; });
   return (
     <mesh material={material} renderOrder={-10} raycast={() => null}>
       <sphereGeometry args={[150, 32, 16]} />
@@ -136,6 +143,7 @@ export function BrainCanvas() {
   const anim = useBrainStore((s) => s.settings.anim);
   const dof = useBrainStore((s) => s.settings.dof);
   const bloom = useBrainStore((s) => s.settings.bloom);
+  const style = useBrainStore((s) => s.settings.style);
 
   return (
     <Canvas
@@ -147,7 +155,7 @@ export function BrainCanvas() {
     >
       <color attach="background" args={["#060817"]} />
       <Sky />
-      <Stars radius={70} depth={45} count={3500} factor={2.6} saturation={0.5} fade speed={0.4} />
+      {style === "neon" && <Stars radius={70} depth={45} count={3500} factor={2.6} saturation={0.5} fade speed={0.4} />}
       <ambientLight intensity={0.7} />
       <Suspense fallback={null}>
         <NeuronDust />
@@ -181,7 +189,7 @@ export function BrainCanvas() {
         <EffectComposer multisampling={0}>
           <Bloom
             intensity={1.25}
-            luminanceThreshold={0.22}
+            luminanceThreshold={style === "organico" ? 0.6 : 0.22}
             luminanceSmoothing={0.2}
             mipmapBlur
           />

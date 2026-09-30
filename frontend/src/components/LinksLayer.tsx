@@ -49,6 +49,7 @@ const vertex = /* glsl */ `
 
 const fragment = /* glsl */ `
   uniform float uTime;
+  uniform float uWarm;
   uniform float uAnim;
   varying vec3 vColor;
   varying float vT;
@@ -62,7 +63,8 @@ const fragment = /* glsl */ `
     float wave = fract(vT - uTime * 0.35 + vSeed);
     float pulse = pow(smoothstep(0.0, 0.12, wave) * (1.0 - smoothstep(0.12, 0.3, wave)), 1.5);
     float a = min(1.0, vAlpha * 1.6 * (0.6 + 1.2 * pulse * uAnim));
-    gl_FragColor = vec4(vColor * a, a);
+    vec3 col = mix(vColor, vec3(1.0, 0.72, 0.42), 0.55 * uWarm);  // organic: golden filaments
+    gl_FragColor = vec4(col * a, a);
   }
 `;
 
@@ -86,7 +88,7 @@ export function LinksLayer() {
   const material = useMemo(() => new THREE.ShaderMaterial({
     vertexShader: vertex,
     fragmentShader: fragment,
-    uniforms: { uTime: { value: 0 }, uAnim: { value: 1 }, uArousal: { value: 0 } },
+    uniforms: { uTime: { value: 0 }, uAnim: { value: 1 }, uArousal: { value: 0 }, uWarm: { value: 1 } },
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -149,6 +151,7 @@ export function LinksLayer() {
     material.uniforms.uTime.value = clock.elapsedTime;
     material.uniforms.uAnim.value = anim ? 1 : 0;
     material.uniforms.uArousal.value = arousal.level;
+    material.uniforms.uWarm.value = arousal.warm;
     const { hovered: hov, selected: sel } = useNotesStore.getState();
     const wk = geometry.getAttribute("wake") as THREE.BufferAttribute;
     const pos = geometry.getAttribute("position") as THREE.BufferAttribute;

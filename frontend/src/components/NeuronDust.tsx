@@ -12,6 +12,7 @@ const vertex = /* glsl */ `
   uniform float uTime;
   uniform float uPixelRatio;
   uniform float uArousal;
+  uniform float uWarm;
   varying vec3 vColor;
   varying float vAlpha;
   void main() {
@@ -19,10 +20,11 @@ const vertex = /* glsl */ `
     float twinkle = 0.75 + 0.25 * sin(uTime * (0.6 + seed * 1.7) + seed * 40.0);
     gl_PointSize = (2.1 + act * 5.0) * uPixelRatio * (16.0 / -mv.z);
     vColor = mix(color, vec3(1.0), 0.35 + act * 0.5);
+    vColor = mix(vColor, vec3(1.0, 0.74, 0.42), 0.75 * uWarm);  // organic: golden sparks
     // at rest only a faint silhouette; the whole field brightens while thinking,
     // and each fired neuron glows on its own until it fades
-    float rest = mix(0.045, 0.42, uArousal);
-    vAlpha = rest * twinkle + act * 0.95;
+    float rest = mix(0.045, 0.42, uArousal) * mix(1.0, 0.18, uWarm);  // organic: only the firing neurons spark
+    vAlpha = rest * twinkle + act * mix(0.95, 0.8, uWarm);
     gl_Position = projectionMatrix * mv;
   }
 `;
@@ -73,7 +75,7 @@ export function NeuronDust() {
     const m = new THREE.ShaderMaterial({
       vertexShader: vertex,
       fragmentShader: fragment,
-      uniforms: { uTime: { value: 0 }, uPixelRatio: { value: 1 }, uArousal: { value: 0 } },
+      uniforms: { uTime: { value: 0 }, uPixelRatio: { value: 1 }, uArousal: { value: 0 }, uWarm: { value: 1 } },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -169,6 +171,7 @@ export function NeuronDust() {
     material.uniforms.uTime.value = clock.elapsedTime;
     material.uniforms.uPixelRatio.value = pixelRatio;
     material.uniforms.uArousal.value = arousal.level;
+    material.uniforms.uWarm.value = arousal.warm;
     const act = geometry.getAttribute("act") as THREE.BufferAttribute;
 
     // fire the wave fronts that have arrived

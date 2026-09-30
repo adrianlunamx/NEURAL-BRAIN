@@ -6,7 +6,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useBrainStore } from "./brainStore";
 
-export const arousal = { level: 0, target: 0 };
+export const arousal = { level: 0, target: 0, warm: 1 };  // warm: 1 = organic (gold) palette, 0 = neon
 
 /** Wake the brain up a little (clamped to 1). */
 export function excite(amount: number): void {
@@ -26,6 +26,9 @@ export function ArousalDriver() {
     arousal.target = Math.max(floor, arousal.target * Math.exp(-delta * 0.12));
     const goal = Math.max(arousal.target, floor);
     arousal.level += (goal - arousal.level) * (1 - Math.exp(-delta * 1.6));
+    // switching style cross-fades the palettes
+    const warm = settings.style === "organico" ? 1 : 0;
+    arousal.warm += (warm - arousal.warm) * (1 - Math.exp(-delta * 3));
   });
   return null;
 }
