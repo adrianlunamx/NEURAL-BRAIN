@@ -35,6 +35,7 @@ def test_main_posts_event_and_never_raises(monkeypatch):
         sent["body"] = json.loads(req.data)
         return FakeResp()
 
+    monkeypatch.setattr(hook_handler, "backend_up", lambda: True)
     monkeypatch.setattr(hook_handler.urllib.request, "urlopen", fake_urlopen)
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(
         {"tool_name": "Read", "tool_input": {"file_path": "src/x.py"}, "cwd": "/tmp"})))
@@ -47,4 +48,16 @@ def test_main_posts_event_and_never_raises(monkeypatch):
 
     monkeypatch.setattr(hook_handler.urllib.request, "urlopen", boom)
     monkeypatch.setattr("sys.stdin", io.StringIO("not json"))
+    assert hook_handler.main() == 0
+
+
+def test_main_skips_post_when_backend_is_down(monkeypatch):
+    def unexpected_urlopen(*a, **k):
+        raise AssertionError("must not post while the brain is off")
+
+    monkeypatch.setattr(hook_handler, "BACKEND_URL", "http://127.0.0.1:9")  # nothing listens
+    monkeypatch.setattr(hook_handler.urllib.request, "urlopen", unexpected_urlopen)
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(
+        {"tool_name": "Read", "tool_input": {"file_path": "src/x.py"}, "cwd": "/tmp"})))
+    assert hook_handler.backend_up() is False
     assert hook_handler.main() == 0
