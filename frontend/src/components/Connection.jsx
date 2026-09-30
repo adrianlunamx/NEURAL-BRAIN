@@ -1,94 +1,91 @@
-import { memo, useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { QuadraticBezierLine } from '@react-three/drei'
 import * as THREE from 'three'
 import pulseSource from '../shaders/connectionPulse.glsl?raw'
 import { splitShader } from '../utils/shader'
-import { EDGE_BOW, easeOutCubic, edgeCurve, hash01, now } from '../utils/animations'
+import { easeOutCubic, edgeCurve, hash01, now } from '../utils/animations'
 import { COLORS } from '../utils/colors'
 
 const PULSE = splitShader(pulseSource)
 const SEGMENTS = 28
+const ACTIVE_RADIUS = 0.08
+
+function pulseMaterial(id, color) {
+  return new THREE.ShaderMaterial({
+    ...PULSE,
+    uniforms: {
+      uColor: { value: new THREE.Color(color) },
+      uActiveColor: { value: new THREE.Color(COLORS.edgeActive) },
+      uOpacity: { value: 0.15 },
+      uActive: { value: 0 },
+      uTime: { value: 0 },
+      uSeed: { value: hash01(id) },
+      uSpeed: { value: 1.4 },
+    },
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  })
+}
+
+/** Tube along a curve with an `aT` attribute (0 → 1 along its length) for the pulse shader. */
+export function tubeAlong(curve, radius, segments = SEGMENTS) {
+  const g = new THREE.TubeGeometry(curve, segments, radius, 8, false)
+  const uv = g.attributes.uv
+  const t = new Float32Array(uv.count)
+  for (let i = 0; i < uv.count; i++) t[i] = uv.getX(i)
+  g.setAttribute('aT', new THREE.BufferAttribute(t, 1))
+  return g
+}
 
 /**
  * Synapse between two neurons.
- * - idle: dim blue curve (#4169e1, ~0.3 opacity) with a shimmer running along it;
- *   long-range fibres (between lobes / hemispheres) arc higher and turn violet
- * - active: turns white, an electric current travels through it, plus a dashed
- *   "fat" overlay whose dashes flow from source to target.
+ * - idle: very thin #4169e1 line at 0.15 opacity with a faint shimmer; synapses
+ *   longer than the "near" threshold stay hidden until they carry a thought
+ * - thinking: inactive synapses fade to 0.05
+ * - active: a thick white tube (r = 0.08) with an electric current running through it
  */
-function Connection({ id, from, to, weight = 0.5, range = 'local', activation, dimmed }) {
-  const overlay = useRef()
-  const curve = useMemo(() => edgeCurve(from, to, EDGE_BOW[range] ?? EDGE_BOW.local), [from, to, range])
+function Connection({ id, from, to, weight = 0.5, range = 'local', bow = 0, near = true, activation, thinking }) {
+  const curve = useMemo(() => edgeCurve(from, to, bow), [from, to, bow])
 
-  const geometry = useMemo(() => {
-    const pts = curve.getPoints(SEGMENTS)
+  const lineGeo = useMemo(() => {
+    const pts = curve.getPoints(bow ? SEGMENTS : 1)
     const g = new THREE.BufferGeometry().setFromPoints(pts)
-    g.setAttribute('aT', new THREE.Float32BufferAttribute(pts.map((_, i) => i / SEGMENTS), 1))
+    g.setAttribute('aT', new THREE.Float32BufferAttribute(pts.map((_, i) => i / (pts.length - 1)), 1))
     return g
-  }, [curve])
+  }, [curve, bow])
+  const lineMat = useMemo(() => pulseMaterial(id, range === 'long' ? COLORS.edgeLong : COLORS.edge), [id, range])
+  const line = useMemo(() => new THREE.Line(lineGeo, lineMat), [lineGeo, lineMat])
 
-  const material = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        ...PULSE,
-        uniforms: {
-          uColor: { value: new THREE.Color(range === 'long' ? COLORS.edgeLong : COLORS.edge) },
-          uActiveColor: { value: new THREE.Color(COLORS.edgeActive) },
-          uOpacity: { value: 0.3 },
-          uActive: { value: 0 },
-          uTime: { value: 0 },
-          uSeed: { value: hash01(id) },
-          uSpeed: { value: 1.4 },
-        },
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        toneMapped: false,
-      }),
-    [id, range],
-  )
+  const tubeGeo = useMemo(() => (activation ? tubeAlong(curve, ACTIVE_RADIUS) : null), [activation, curve])
+  const tubeMat = useMemo(() => (activation ? pulseMaterial(`${id}-tube`, COLORS.edgeActive) : null), [activation, id])
 
-  const line = useMemo(() => new THREE.Line(geometry, material), [geometry, material])
-  useEffect(() => () => geometry.dispose(), [geometry])
-  useEffect(() => () => material.dispose(), [material])
+  useEffect(() => () => lineGeo.dispose(), [lineGeo])
+  useEffect(() => () => lineMat.dispose(), [lineMat])
+  useEffect(() => () => tubeGeo?.dispose(), [tubeGeo])
+  useEffect(() => () => tubeMat?.dispose(), [tubeMat])
 
-  useFrame((_, delta) => {
+  useFrame(() => {
     const t = now()
     const a = activation && t >= activation.at ? easeOutCubic((t - activation.at) / 0.3) : 0
-    const u = material.uniforms
+    const u = lineMat.uniforms
     u.uTime.value = t
-    u.uActive.value = a
-    u.uOpacity.value = (0.22 + 0.16 * weight) * (dimmed && !activation ? 0.35 : 1)
-
-    if (overlay.current) {
-      const mat = overlay.current.material
-      mat.opacity = a * 0.9
-      mat.dashOffset -= delta * 2.4
+    const idle = near ? 0.12 + 0.06 * weight : 0
+    u.uOpacity.value = thinking ? (activation ? 0 : 0.05) : idle
+    u.uActive.value = 0
+    if (tubeMat) {
+      const v = tubeMat.uniforms
+      v.uTime.value = t
+      v.uActive.value = a
+      v.uOpacity.value = a * 0.55
     }
   })
 
   return (
     <group>
       <primitive object={line} />
-      {activation && (
-        <QuadraticBezierLine
-          ref={overlay}
-          start={curve.v0}
-          mid={curve.v1}
-          end={curve.v2}
-          color={COLORS.edgeActive}
-          lineWidth={2.2}
-          dashed
-          dashScale={2}
-          dashSize={0.6}
-          gapSize={0.35}
-          transparent
-          opacity={0}
-          toneMapped={false}
-          depthWrite={false}
-        />
-      )}
+      {tubeGeo && <mesh geometry={tubeGeo} material={tubeMat} raycast={() => null} />}
     </group>
   )
 }

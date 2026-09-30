@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { streamQuery } from '../utils/api'
-import { EDGE_BOW, PHASES, edgeCurve, edgeKey, now } from '../utils/animations'
+import { PHASES, bowFor, edgeCurve, edgeKey, now } from '../utils/animations'
 import { COLORS } from '../utils/colors'
 import { particleBus } from '../utils/particleBus'
 
@@ -10,7 +10,7 @@ const IDLE_SCENE = {
   startedAt: 0,
   phaseAt: {},
   query: null, // { pos: Vector3, at }
-  answer: null, // { pos: Vector3, at }
+  answer: null, // { id?: synthesis neuron, pos: Vector3, at, sources: ids }
   activeNodes: {}, // id -> { at, role: 'hit'|'bridge', rank, score, cascade: number[] }
   activeEdges: {}, // key -> { at, from, to, order }
 }
@@ -23,14 +23,14 @@ const EMPTY_RESPONSE = null
  * 1500-2000ms). Each phase starts at the later of "its slot" and "when the
  * data arrived", so the animation never runs ahead of the real reasoning.
  */
-export function useThinking({ nodeMap, edgeMap, radius, onGraphStale }) {
+export function useThinking({ nodeMap, edgeMap, layout, radius, onGraphStale }) {
   const [scene, setScene] = useState(IDLE_SCENE)
   const [response, setResponse] = useState(EMPTY_RESPONSE)
   const timers = useRef([])
   const abortRef = useRef(null)
   const run = useRef(0)
-  const graphRef = useRef({ nodeMap, edgeMap, radius })
-  graphRef.current = { nodeMap, edgeMap, radius }
+  const graphRef = useRef({ nodeMap, edgeMap, layout, radius })
+  graphRef.current = { nodeMap, edgeMap, layout, radius }
 
   const clearTimers = () => {
     timers.current.forEach(clearTimeout)
@@ -66,7 +66,7 @@ export function useThinking({ nodeMap, edgeMap, radius, onGraphStale }) {
       const myRun = run.current
       const alive = () => run.current === myRun
       const k = animate ? 1 : 0 // collapses every delay when animations are off
-      const { nodeMap: nodes, edgeMap: edgeInfo, radius: R } = graphRef.current
+      const { nodeMap: nodes, edgeMap: edgeInfo, layout, radius: R } = graphRef.current
       const t0 = now()
 
       const trace = import.meta.env.DEV ? (window.__nbTimeline = []) : null
@@ -80,7 +80,7 @@ export function useThinking({ nodeMap, edgeMap, radius, onGraphStale }) {
         timers.current.push(id)
       }
 
-      const queryPos = new THREE.Vector3(0, R * 0.95 + 3, 0)
+      const queryPos = new THREE.Vector3(0, R * (layout === 'oval' ? 0.8 : 0.95) + 3, 0)
       const tl = { input: t0, search: null, connect: null, synthesize: null }
       let hits = []
       let involved = [] // hits + bridges, for the synthesis convergence
@@ -119,7 +119,7 @@ export function useThinking({ nodeMap, edgeMap, radius, onGraphStale }) {
             particleBus.emit({
               kind: 'travel',
               at: Math.max(tl.search, nodeAt - 0.32),
-              curve: edgeCurve(queryPos, nodes.get(h.id).vec),
+              curve: edgeCurve(queryPos, nodes.get(h.id).vec, 0),
               color: COLORS.query,
               count: 26,
               duration: 0.34,
@@ -150,7 +150,7 @@ export function useThinking({ nodeMap, edgeMap, radius, onGraphStale }) {
             particleBus.emit({
               kind: 'travel',
               at: edgeAt,
-              curve: edgeCurve(nodes.get(e.from).vec, nodes.get(e.to).vec, EDGE_BOW[edgeInfo?.get(edgeKey(e.from, e.to))?.range] ?? EDGE_BOW.local),
+              curve: edgeCurve(nodes.get(e.from).vec, nodes.get(e.to).vec, bowFor(edgeInfo?.get(edgeKey(e.from, e.to)), layout)),
               color: COLORS.edgeActive,
               count: 22,
               duration: 0.42,
@@ -183,10 +183,10 @@ export function useThinking({ nodeMap, edgeMap, radius, onGraphStale }) {
         const connectAt = tl.connect ?? now()
         tl.synthesize = Math.max(now(), connectAt + (PHASES.synthesize - PHASES.connect) * k)
 
-        const centroid = new THREE.Vector3()
-        const pts = involved.map((id) => nodes.get(id)?.vec).filter(Boolean)
-        pts.forEach((p) => centroid.add(p))
-        if (pts.length) centroid.divideScalar(pts.length).multiplyScalar(0.35)
+        // the most relevant neuron becomes the synthesis neuron; without hits, one emerges at the centre
+        const synthId = hits[0]?.id ?? null
+        const centroid = synthId ? nodes.get(synthId).vec.clone() : new THREE.Vector3()
+        const pts = involved.filter((id) => id !== synthId).map((id) => nodes.get(id)?.vec).filter(Boolean)
         const answerAt = tl.synthesize + 0.18 * k
 
         if (animate) {
@@ -194,7 +194,7 @@ export function useThinking({ nodeMap, edgeMap, radius, onGraphStale }) {
             particleBus.emit({
               kind: 'travel',
               at: tl.synthesize,
-              curve: edgeCurve(p, centroid),
+              curve: edgeCurve(p, centroid, 0),
               color: COLORS.concept,
               count: 18,
               duration: 0.4,
@@ -210,7 +210,7 @@ export function useThinking({ nodeMap, edgeMap, radius, onGraphStale }) {
             ...s,
             phase: 'synthesize',
             phaseAt: { ...s.phaseAt, synthesize: tl.synthesize },
-            answer: { pos: centroid, at: answerAt, sources: involved },
+            answer: { id: synthId, pos: centroid, at: answerAt, sources: involved.filter((id) => id !== synthId) },
           }))
           setResponse((r) => r && { ...r, text: r.text + tokenBuffer })
           tokenBuffer = ''
@@ -220,6 +220,8 @@ export function useThinking({ nodeMap, edgeMap, radius, onGraphStale }) {
       const finish = (data) => {
         startSynthesis()
         const settleAt = Math.max(now(), tl.synthesize + (PHASES.settle - PHASES.synthesize) * k)
+        // 2s after the answer the brain relaxes back to idle (the answer panel stays open)
+        at(settleAt + 2, () => setScene(IDLE_SCENE))
         at(settleAt, () => {
           setScene((s) => ({ ...s, phase: 'answered', phaseAt: { ...s.phaseAt, answered: settleAt } }))
           setResponse((r) =>

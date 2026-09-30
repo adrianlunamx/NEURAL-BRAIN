@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
 
 /**
- * Auto-zoom: when the search phase lights up neurons, fly the camera so the
- * active cluster fills the view. Clearing the answer flies back home.
+ * Auto-zoom: when the search phase lights up neurons, fly the camera to the
+ * active cluster (rotation stops while thinking). When the brain relaxes back
+ * to idle, fly home.
  *
  * @param {React.RefObject} rigRef  CameraRig handle (focusOn / frame / home)
  * @param {object} scene           useThinking scene
@@ -19,7 +20,6 @@ export function useAutoZoom(rigRef, scene, nodeMap, enabled = true) {
     const points = Object.keys(scene.activeNodes)
       .map((id) => nodeMap.get(id)?.vec)
       .filter(Boolean)
-    if (scene.query?.pos) points.push(scene.query.pos)
     rigRef.current?.frame(points)
   }, [enabled, searchAt, scene.activeNodes, scene.query, nodeMap, rigRef])
 

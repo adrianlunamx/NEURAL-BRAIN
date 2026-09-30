@@ -5,7 +5,7 @@ export const COLORS = {
   concept: '#00f5ff',
   fact: '#39ff14',
   query: '#ff00ff',
-  answer: '#ffe600',
+  answer: '#ffff00',
   edge: '#4169e1',
   edgeActive: '#ffffff',
   edgeLong: '#7b61ff',

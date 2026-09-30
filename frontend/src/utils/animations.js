@@ -14,7 +14,7 @@ export const PHASES = {
 }
 
 // OrbitControls autoRotateSpeed (three-stdlib: 1 ≈ one turn per minute at 60fps)
-export const IDLE_ROTATE_SPEED = 0.5
+export const IDLE_ROTATE_SPEED = 0.3
 
 // ── easing ────────────────────────────────────────────────────
 export const clamp01 = (x) => Math.min(1, Math.max(0, x))
@@ -40,14 +40,21 @@ export const popScale = (t, duration = 0.3) => {
   return 1.5 - 0.5 * easeOutElastic((x - 0.55) / 0.45)
 }
 
-/** Idle breathing: scale 1.0 ↔ 1.05 on a 2s loop. */
-export const idlePulse = (t, phase = 0) => 1.025 + 0.025 * Math.sin(t * Math.PI + phase)
+/** Idle breathing: scale 1.0 ↔ 1.03 on a 2s loop. */
+export const idlePulse = (t, phase = 0) => 1.015 + 0.015 * Math.sin(t * Math.PI + phase)
 
 // ── geometry ──────────────────────────────────────────────────
 const _up = new THREE.Vector3(0, 1, 0)
 
 /** Bow for each fibre type: long-range fibres arc like the corpus callosum. */
 export const EDGE_BOW = { local: 0.12, long: 0.38 }
+
+/** Curvature for an edge: straight synapses in the flat oval view, arcs in the 3D layouts. */
+export const bowFor = (edge, layout) => (layout === 'oval' ? 0 : EDGE_BOW[edge?.range] ?? EDGE_BOW.local)
+
+/** How much bigger an active neuron gets: top hit ×1.5 down to ×1.2. */
+export const activeScale = (activation) =>
+  !activation ? 1 : activation.role === 'bridge' ? 1.15 : Math.max(1.2, 1.5 - 0.075 * (activation.rank ?? 0))
 
 /** Curved edge between two points, bowed away from the brain's centre. */
 export function edgeCurve(a, b, bow = EDGE_BOW.local) {
