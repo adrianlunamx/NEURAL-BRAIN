@@ -11,7 +11,8 @@ pids=()
 cleanup() { echo; echo "▸ shutting down"; kill "${pids[@]}" 2>/dev/null || true; wait 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
 
-(cd backend && source .venv/bin/activate && exec uvicorn main:app --host 127.0.0.1 --port "${BACKEND_PORT:-8000}" --reload) &
+# backend runs as a package from the repo root (backend.app.main)
+(exec backend/.venv/bin/uvicorn backend.app.main:app --host 127.0.0.1 --port "${BACKEND_PORT:-8000}") &
 pids+=($!)
 (cd frontend && exec npm run dev -- --port "${FRONTEND_PORT:-5173}") &
 pids+=($!)
