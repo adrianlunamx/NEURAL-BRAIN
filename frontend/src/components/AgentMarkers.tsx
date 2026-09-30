@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { actionColor, livePositions, useNotesStore } from "../store/notesStore";
 import { AgentInfo, SessionInfo } from "../types";
 import { BRAIN_CENTER, sdfBrain } from "../config/brainConfig";
+import { clientInfo } from "./ui/common";
 
 /** Agents that acted within this window get a marker. */
 const ACTIVE_SECONDS = 90;
@@ -105,7 +106,7 @@ function AgentMarker({ session, agent, hub, now }: {
   );
 }
 
-/** Live Claude Code agents travelling over the notes they read, search and edit. */
+/** Live coding agents (any client) travelling over the notes they read, search and edit. */
 export function AgentMarkers() {
   const activity = useNotesStore((s) => s.activity);
   const mode = useNotesStore((s) => s.mode);
@@ -127,7 +128,9 @@ export function AgentMarkers() {
                 <meshBasicMaterial color="#ffd27a" toneMapped={false} />
               </mesh>
               <Html center zIndexRange={[20, 10]} style={{ pointerEvents: "none" }}>
-                <div className="hub-pill">{s.project}</div>
+                <div className="hub-pill">
+                  {s.project} <span style={{ color: clientInfo(s.client).color }}>· {clientInfo(s.client).label}</span>
+                </div>
               </Html>
             </group>
             {agents.map((a) => (

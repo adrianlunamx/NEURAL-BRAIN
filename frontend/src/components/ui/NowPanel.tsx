@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { API_URL } from "../../config";
 import { actionColor, useNotesStore } from "../../store/notesStore";
-import { ago, basename } from "./common";
+import { ago, basename, ClientBadge } from "./common";
 
-/** "Ahora": live Claude Code sessions, their subagents, recent actions and edited files. */
+/** "Ahora": live agent sessions (Claude Code, Cursor, Codex...), their subagents, recent actions and edited files. */
 export function NowPanel() {
   const activity = useNotesStore((s) => s.activity);
   const connected = useNotesStore((s) => s.connected);
@@ -29,7 +29,7 @@ export function NowPanel() {
         <span className={`live-dot${connected ? " on" : ""}`} />
         <b>Ahora</b>
         <span className="muted">{connected ? "conectado" : "sin conexión"}</span>
-        <button className="probar" onClick={() => void demo()} disabled={busy} title="Simula una sesión de Claude Code">
+        <button className="probar" onClick={() => void demo()} disabled={busy} title="Simula dos agentes trabajando (Claude Code y Cursor)">
           Probar
         </button>
       </div>
@@ -40,7 +40,7 @@ export function NowPanel() {
         return (
           <div key={s.id} className="session">
             <div>
-              <b>{s.project}</b> <span className={`status st-${s.status.replace(" ", "-")}`}>{s.status}</span>
+              <b>{s.project}</b> <ClientBadge client={s.client} /> <span className={`status st-${s.status.replace(" ", "-")}`}>{s.status}</span>
               {s.detail && <span className="muted"> · {s.detail}</span>}
               {s.active_agents > 0 && <span className="muted"> · {s.active_agents} agente{s.active_agents > 1 ? "s" : ""}</span>}
             </div>
