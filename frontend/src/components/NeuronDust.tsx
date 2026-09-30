@@ -39,7 +39,7 @@ const fragment = /* glsl */ `
 
 const CELL = 0.6;           // spatial hash cell (world units)
 const WAVE_SPEED = 3.5;     // units per second: how fast a firing spreads
-const FADE_PER_SECOND = 0.3; // fired neurons fade in ~10 s
+const FADE_PER_SECOND = 0.3; // fired neurons fade in ~15 s (exp decay, cut at 0.01)
 
 interface Pending { i: number; at: number; amount: number }
 

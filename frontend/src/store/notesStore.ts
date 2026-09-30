@@ -154,7 +154,7 @@ export function emitNotePulse(noteId: string, color: string): void {
 }
 
 /**
- * How awake each note is (1 = just used, fades to 0 in ~20 s; NotesAnimator
+ * How awake each note is (1 = just used, fades to 0 in ~33 s; NotesAnimator
  * decays it). Asleep notes and their connections stay dim.
  */
 export const noteAwake = new Map<string, number>();

@@ -72,9 +72,10 @@ const vertex = /* glsl */ `
     float wake = max(awake, max(uArousal * 0.6, step(1.5, emphasis)));
     glow *= mix(0.16, 1.0, wake);
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = size * mix(0.7, 1.0, wake) * (0.85 + 0.35 * blink)
+    float px = size * mix(0.7, 1.0, wake) * (0.85 + 0.35 * blink)
       * (1.0 + pulse * 1.2 + max(emphasis - 1.0, 0.0) * 0.5)
       * uScale / -mv.z;
+    gl_PointSize = min(px, 96.0); // cap: no giant blobs when zoomed in close
     vColor = color;
     vGlow = glow;
     vEmphasis = emphasis;
