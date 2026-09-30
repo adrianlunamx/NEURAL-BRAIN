@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "NEURAL_BRAIN_URL=http://127.0.0.1:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
+            "command": "python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py",
+            "async": true
           }
         ]
       }
@@ -17,7 +18,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "NEURAL_BRAIN_URL=http://127.0.0.1:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
+            "command": "python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py",
+            "async": true
           }
         ]
       }
@@ -27,7 +29,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "NEURAL_BRAIN_URL=http://127.0.0.1:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
+            "command": "python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py",
+            "async": true
           }
         ]
       }
@@ -37,7 +40,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "NEURAL_BRAIN_URL=http://127.0.0.1:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
+            "command": "python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py",
+            "async": true
           }
         ]
       }
@@ -47,7 +51,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "NEURAL_BRAIN_URL=http://127.0.0.1:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
+            "command": "python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py",
+            "async": true
           }
         ]
       }
@@ -57,7 +62,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "NEURAL_BRAIN_URL=http://127.0.0.1:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
+            "command": "python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py",
+            "async": true
           }
         ]
       }
@@ -67,7 +73,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "NEURAL_BRAIN_URL=http://127.0.0.1:8000 python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py"
+            "command": "python3 /ruta/a/neural-brain/backend/hooks/hook_handler.py",
+            "async": true
           }
         ]
       }
