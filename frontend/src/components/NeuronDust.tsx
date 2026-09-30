@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { MAX_NEURONS } from "../types";
-import { onActivation, onNeuronUpsert, useBrainStore } from "../store/brainStore";
+import { onActivation, onNeuronUpsert, onSpark, useBrainStore } from "../store/brainStore";
+import { arousal } from "../store/arousal";
 
 const vertex = /* glsl */ `
   attribute vec3 color;
@@ -10,6 +11,7 @@ const vertex = /* glsl */ `
   attribute float act;
   uniform float uTime;
   uniform float uPixelRatio;
+  uniform float uArousal;
   varying vec3 vColor;
   varying float vAlpha;
   void main() {
@@ -17,7 +19,10 @@ const vertex = /* glsl */ `
     float twinkle = 0.75 + 0.25 * sin(uTime * (0.6 + seed * 1.7) + seed * 40.0);
     gl_PointSize = (2.1 + act * 5.0) * uPixelRatio * (16.0 / -mv.z);
     vColor = mix(color, vec3(1.0), 0.35 + act * 0.5);
-    vAlpha = (0.42 * twinkle + act * 0.9);
+    // at rest only a faint silhouette; the whole field brightens while thinking,
+    // and each fired neuron glows on its own until it fades
+    float rest = mix(0.045, 0.42, uArousal);
+    vAlpha = rest * twinkle + act * 0.95;
     gl_Position = projectionMatrix * mv;
   }
 `;
@@ -32,10 +37,21 @@ const fragment = /* glsl */ `
   }
 `;
 
+const CELL = 0.6;           // spatial hash cell (world units)
+const WAVE_SPEED = 3.5;     // units per second: how fast a firing spreads
+const FADE_PER_SECOND = 0.3; // fired neurons fade in ~10 s
+
+interface Pending { i: number; at: number; amount: number }
+
+function cellKey(x: number, y: number, z: number): string {
+  return `${Math.floor(x / CELL)},${Math.floor(y / CELL)},${Math.floor(z / CELL)}`;
+}
+
 /**
  * The 19,000 neurons as fine luminous dust that draws the brain.
- * One THREE.Points (1 draw call); activations brighten single points from the
- * activation bus without re-rendering React.
+ * Dark at rest: neurons light up when they fire (hooks, queries) and the firing
+ * spreads to their neighbours as a wave, then everything fades back.
+ * One THREE.Points (1 draw call); no React re-renders on activity.
  */
 export function NeuronDust() {
   const graphVersion = useBrainStore((s) => s.graphVersion);
@@ -43,6 +59,9 @@ export function NeuronDust() {
   const pointsRef = useRef<THREE.Points>(null!);
   const indexOf = useRef(new Map<string, number>());
   const active = useRef(new Set<number>());
+  const grid = useRef(new Map<string, number[]>());
+  const pending = useRef<Pending[]>([]);
+  const clockRef = useRef(0);
 
   const { geometry, material } = useMemo(() => {
     const g = new THREE.BufferGeometry();
@@ -54,13 +73,19 @@ export function NeuronDust() {
     const m = new THREE.ShaderMaterial({
       vertexShader: vertex,
       fragmentShader: fragment,
-      uniforms: { uTime: { value: 0 }, uPixelRatio: { value: 1 } },
+      uniforms: { uTime: { value: 0 }, uPixelRatio: { value: 1 }, uArousal: { value: 0 } },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
     return { geometry: g, material: m };
   }, []);
+
+  const addToGrid = (i: number, x: number, y: number, z: number) => {
+    const key = cellKey(x, y, z);
+    const list = grid.current.get(key);
+    if (list) list.push(i); else grid.current.set(key, [i]);
+  };
 
   // (re)build every point from the store after a full graph load
   useEffect(() => {
@@ -70,6 +95,7 @@ export function NeuronDust() {
     const seed = geometry.getAttribute("seed") as THREE.BufferAttribute;
     const c = new THREE.Color();
     indexOf.current.clear();
+    grid.current.clear();
     let i = 0;
     for (const id of neuronOrder) {
       const n = neurons.get(id);
@@ -79,6 +105,7 @@ export function NeuronDust() {
       col.setXYZ(i, c.r, c.g, c.b);
       seed.setX(i, Math.random());
       indexOf.current.set(id, i);
+      addToGrid(i, n.position[0], n.position[1], n.position[2]);
       i++;
     }
     geometry.setDrawRange(0, i);
@@ -88,12 +115,37 @@ export function NeuronDust() {
 
   useEffect(() => {
     const act = geometry.getAttribute("act") as THREE.BufferAttribute;
+    const pos = geometry.getAttribute("position") as THREE.BufferAttribute;
+
+    const fire = (i: number, amount: number) => {
+      act.setX(i, Math.max(act.getX(i), amount));
+      active.current.add(i);
+    };
+
+    // schedule a wave of firings around a point: nearer neurons fire first and stronger
+    const spark = (p: [number, number, number], amount: number, radius: number) => {
+      const r = Math.ceil(radius / CELL);
+      const cx = Math.floor(p[0] / CELL), cy = Math.floor(p[1] / CELL), cz = Math.floor(p[2] / CELL);
+      for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) for (let dz = -r; dz <= r; dz++) {
+        const list = grid.current.get(`${cx + dx},${cy + dy},${cz + dz}`);
+        if (!list) continue;
+        for (const i of list) {
+          if (Math.random() > 0.65) continue; // not every neuron answers: looks organic
+          const d = Math.hypot(pos.getX(i) - p[0], pos.getY(i) - p[1], pos.getZ(i) - p[2]);
+          if (d > radius) continue;
+          const falloff = Math.pow(1 - d / radius, 1.5);
+          pending.current.push({ i, at: clockRef.current + d / WAVE_SPEED, amount: amount * falloff * (0.5 + Math.random() * 0.5) });
+        }
+      }
+    };
+
     const offAct = onActivation((id, amount) => {
       const i = indexOf.current.get(id);
       if (i === undefined) return;
-      act.setX(i, Math.max(act.getX(i), amount));
-      active.current.add(i);
+      fire(i, amount);
+      if (amount > 0.5) spark([pos.getX(i), pos.getY(i), pos.getZ(i)], amount * 0.7, 0.9);
     });
+    const offSpark = onSpark(spark);
     const offUpsert = onNeuronUpsert((n) => {
       let i = indexOf.current.get(n.id);
       if (i === undefined) {
@@ -102,22 +154,37 @@ export function NeuronDust() {
         indexOf.current.set(n.id, i);
         geometry.setDrawRange(0, i + 1);
       }
-      const pos = geometry.getAttribute("position") as THREE.BufferAttribute;
-      const col = geometry.getAttribute("color") as THREE.BufferAttribute;
       pos.setXYZ(i, n.position[0], n.position[1], n.position[2]);
+      addToGrid(i, n.position[0], n.position[1], n.position[2]);
+      const col = geometry.getAttribute("color") as THREE.BufferAttribute;
       const c = new THREE.Color(n.color);
       col.setXYZ(i, c.r, c.g, c.b);
       pos.needsUpdate = col.needsUpdate = true;
     });
-    return () => { offAct(); offUpsert(); };
+    return () => { offAct(); offSpark(); offUpsert(); };
   }, [geometry]);
 
   useFrame(({ clock }, delta) => {
+    clockRef.current = clock.elapsedTime;
     material.uniforms.uTime.value = clock.elapsedTime;
     material.uniforms.uPixelRatio.value = pixelRatio;
-    if (active.current.size === 0) return;
+    material.uniforms.uArousal.value = arousal.level;
     const act = geometry.getAttribute("act") as THREE.BufferAttribute;
-    const decay = Math.exp(-delta * 0.9);
+
+    // fire the wave fronts that have arrived
+    if (pending.current.length) {
+      const now = clock.elapsedTime;
+      const later: Pending[] = [];
+      for (const p of pending.current) {
+        if (p.at <= now) {
+          act.setX(p.i, Math.max(act.getX(p.i), p.amount));
+          active.current.add(p.i);
+        } else later.push(p);
+      }
+      pending.current = later;
+    }
+    if (active.current.size === 0) return;
+    const decay = Math.exp(-delta * FADE_PER_SECOND);
     for (const i of active.current) {
       const v = act.getX(i) * decay;
       if (v < 0.01) { act.setX(i, 0); active.current.delete(i); } else act.setX(i, v);

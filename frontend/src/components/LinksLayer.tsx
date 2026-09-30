@@ -1,7 +1,8 @@
 import { useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { livePositions, useNotesStore, visibleNotes } from "../store/notesStore";
+import { livePositions, noteAwake, useNotesStore, visibleNotes } from "../store/notesStore";
+import { arousal } from "../store/arousal";
 import { useBrainStore } from "../store/brainStore";
 import { LinkType, NoteLink } from "../types";
 
@@ -30,6 +31,8 @@ const vertex = /* glsl */ `
   attribute float alpha;
   attribute float stroke;
   attribute float seed;
+  attribute float wake;
+  uniform float uArousal;
   varying vec3 vColor;
   varying float vT;
   varying float vDist;
@@ -37,7 +40,9 @@ const vertex = /* glsl */ `
   varying float vStroke;
   varying float vSeed;
   void main() {
-    vColor = color; vT = t; vDist = dist; vAlpha = alpha; vStroke = stroke; vSeed = seed;
+    vColor = color; vT = t; vDist = dist; vStroke = stroke; vSeed = seed;
+    // dim at rest; a connection lights up when one of its notes is in use
+    vAlpha = alpha * mix(0.1, 1.0, max(wake, uArousal * 0.7));
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
@@ -81,7 +86,7 @@ export function LinksLayer() {
   const material = useMemo(() => new THREE.ShaderMaterial({
     vertexShader: vertex,
     fragmentShader: fragment,
-    uniforms: { uTime: { value: 0 }, uAnim: { value: 1 } },
+    uniforms: { uTime: { value: 0 }, uAnim: { value: 1 }, uArousal: { value: 0 } },
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -97,6 +102,7 @@ export function LinksLayer() {
     g.setAttribute("alpha", new THREE.BufferAttribute(new Float32Array(verts), 1));
     g.setAttribute("stroke", new THREE.BufferAttribute(new Float32Array(verts), 1));
     g.setAttribute("seed", new THREE.BufferAttribute(new Float32Array(verts), 1));
+    g.setAttribute("wake", new THREE.BufferAttribute(new Float32Array(verts), 1));
     return g;
   }, [links]);
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -142,6 +148,9 @@ export function LinksLayer() {
   useFrame(({ clock }) => {
     material.uniforms.uTime.value = clock.elapsedTime;
     material.uniforms.uAnim.value = anim ? 1 : 0;
+    material.uniforms.uArousal.value = arousal.level;
+    const { hovered: hov, selected: sel } = useNotesStore.getState();
+    const wk = geometry.getAttribute("wake") as THREE.BufferAttribute;
     const pos = geometry.getAttribute("position") as THREE.BufferAttribute;
     const tt = geometry.getAttribute("t") as THREE.BufferAttribute;
     const dd = geometry.getAttribute("dist") as THREE.BufferAttribute;
@@ -152,6 +161,8 @@ export function LinksLayer() {
       pa.copy(a);
       pb.copy(b);
       const chord = pa.distanceTo(pb);
+      const focused = l.source === hov || l.target === hov || l.source === sel || l.target === sel;
+      const wake = focused ? 1 : Math.max(noteAwake.get(l.source) ?? 0, noteAwake.get(l.target) ?? 0);
       // quadratic Bézier bent toward the centre: long links bundle through the middle
       ctrl.copy(pa).add(pb).multiplyScalar(0.5);
       ctrl.lerp(BUNDLE_CENTER, Math.min(0.45, chord * 0.1));
@@ -167,9 +178,10 @@ export function LinksLayer() {
         pos.setXYZ(v, pt.x, pt.y, pt.z);
         tt.setX(v, t);
         dd.setX(v, t * chord);
+        wk.setX(v, wake);
       }
     });
-    pos.needsUpdate = tt.needsUpdate = dd.needsUpdate = true;
+    pos.needsUpdate = tt.needsUpdate = dd.needsUpdate = wk.needsUpdate = true;
   });
 
   return <lineSegments geometry={geometry} material={material} frustumCulled={false} />;

@@ -14,6 +14,7 @@ import { NotesAnimator, FireflyNotes } from "./FireflyNotes";
 import { LinksLayer } from "./LinksLayer";
 import { AgentMarkers, markerPositions } from "./AgentMarkers";
 import { livePositions, useNotesStore } from "../store/notesStore";
+import { ArousalDriver } from "../store/arousal";
 import { BRAIN_CENTER } from "../config/brainConfig";
 
 /** Keeps a failing subtree (e.g. a font that can't load) from unmounting the whole scene. */
@@ -152,6 +153,7 @@ export function BrainCanvas() {
         <NeuronDust />
         <Fibers />
         <BrainShell />
+        <ArousalDriver />
         <NotesAnimator />
         <LinksLayer />
         <FireflyNotes />

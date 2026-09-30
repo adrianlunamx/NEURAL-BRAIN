@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { BRAIN_SHELL_URL, SHELL_STYLE } from "../config/brainConfig";
+import { lit } from "../store/arousal";
 
 interface ShellJSON {
   vertices: number[];
@@ -102,6 +103,10 @@ export function BrainShell() {
 
   useFrame(({ clock }) => {
     material.uniforms.uTime.value = clock.elapsedTime;
+    // the cortex is a faint outline at rest and glows while the brain thinks
+    material.uniforms.uOpacity.value = SHELL_STYLE.opacity * lit(0.4);
+    material.uniforms.uRimOpacity.value = SHELL_STYLE.rimOpacity * lit(0.45);
+    dots.opacity = 0.2 * lit(0.3);
   });
 
   if (!geometry) return null;

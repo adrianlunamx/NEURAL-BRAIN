@@ -5,6 +5,7 @@ import {
 
 export interface Settings {
   anim: boolean;      // rotación automática
+  alwaysLit: boolean; // cerebro siempre iluminado (si no, se enciende al pensar)
   autoZoom: boolean;  // cámara sigue las fases de query
   labels: boolean;    // labels flotantes con %
   dof: boolean;       // depth of field
@@ -56,7 +57,7 @@ export const useBrainStore = create<BrainState>((set) => ({
   queryNeuron: null,
   rays: [],
   labels3d: [],
-  settings: { anim: true, autoZoom: true, labels: true, dof: false, bloom: true },
+  settings: { anim: true, alwaysLit: false, autoZoom: true, labels: true, dof: false, bloom: true },
   stats: INITIAL_STATS,
   resetToken: 0,
   lastAnswer: null,
@@ -131,4 +132,20 @@ export function onNeuronUpsert(fn: UpsertListener): () => void {
 
 function emitUpsert(n: NeuronData): void {
   upsertListeners.forEach((fn) => fn(n));
+}
+
+// ---------------------------------------------------------------------------
+// Spark bus: "something is being thought about here" — NeuronDust lights the
+// neurons around a point in a wave (a note an agent touched, a query hit...).
+// ---------------------------------------------------------------------------
+type SparkListener = (position: [number, number, number], amount: number, radius: number) => void;
+const sparkListeners = new Set<SparkListener>();
+
+export function onSpark(fn: SparkListener): () => void {
+  sparkListeners.add(fn);
+  return () => { sparkListeners.delete(fn); };
+}
+
+export function emitSpark(position: [number, number, number], amount = 1, radius = 1.2): void {
+  sparkListeners.forEach((fn) => fn(position, amount, radius));
 }
