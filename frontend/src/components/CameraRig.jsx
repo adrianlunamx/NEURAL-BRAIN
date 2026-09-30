@@ -2,13 +2,19 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
-import { IDLE_ROTATION_RPM, easeInOutCubic, now } from '../utils/animations'
+import { IDLE_ROTATE_SPEED, easeInOutCubic, now } from '../utils/animations'
 
 const FLY_TIME = 1.1
+export const MIN_DISTANCE = 10
+export const MAX_DISTANCE = 100
+
+const clampDistance = (d) => THREE.MathUtils.clamp(d, MIN_DISTANCE + 1, MAX_DISTANCE - 2)
 
 /**
- * OrbitControls + smooth camera flights.
- * `focusOn(vec, distance)` flies towards a neuron; `home()` returns to the overview.
+ * OrbitControls (rotate · zoom 10-100 · pan) + smooth camera flights.
+ * - focusOn(vec, distance): fly towards one neuron
+ * - frame(points): fit a cluster of neurons in view (auto-zoom)
+ * - home(): back to the overview
  */
 const CameraRig = forwardRef(function CameraRig({ autoRotate, homeDistance }, ref) {
   const controls = useRef()
@@ -24,14 +30,23 @@ const CameraRig = forwardRef(function CameraRig({ autoRotate, homeDistance }, re
       toPos: position.clone(),
     }
   }
+  const viewDir = () => camera.position.clone().sub(controls.current.target).normalize()
 
   useImperativeHandle(ref, () => ({
     focusOn(vec, distance = 12) {
-      const dir = camera.position.clone().sub(controls.current.target).normalize()
-      flyTo(vec, vec.clone().add(dir.multiplyScalar(distance)))
+      flyTo(vec, vec.clone().add(viewDir().multiplyScalar(clampDistance(distance))))
+    },
+    frame(points, padding = 1.35) {
+      if (!points.length) return
+      const center = points.reduce((acc, p) => acc.add(p), new THREE.Vector3()).divideScalar(points.length)
+      const radius = Math.max(4, ...points.map((p) => p.distanceTo(center)))
+      const fov = THREE.MathUtils.degToRad(camera.fov)
+      const distance = clampDistance((radius * padding) / Math.sin(fov / 2))
+      flyTo(center, center.clone().add(viewDir().multiplyScalar(distance)))
     },
     home() {
-      flyTo(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, homeDistance * 0.18, homeDistance))
+      const d = clampDistance(homeDistance)
+      flyTo(new THREE.Vector3(0, 0, 0), new THREE.Vector3(d * 0.25, d * 0.18, d))
     },
     get target() {
       return controls.current?.target
@@ -61,13 +76,15 @@ const CameraRig = forwardRef(function CameraRig({ autoRotate, homeDistance }, re
       makeDefault
       enableDamping
       dampingFactor={0.05}
-      rotateSpeed={0.6}
-      zoomSpeed={0.8}
-      minDistance={3}
-      maxDistance={220}
+      minDistance={MIN_DISTANCE}
+      maxDistance={MAX_DISTANCE}
+      enablePan
+      panSpeed={0.5}
+      screenSpacePanning
+      rotateSpeed={0.5}
+      zoomSpeed={1.2}
       autoRotate={autoRotate}
-      // three-stdlib OrbitControls: autoRotateSpeed 1 ≈ 1 rpm at 60fps
-      autoRotateSpeed={IDLE_ROTATION_RPM}
+      autoRotateSpeed={IDLE_ROTATE_SPEED}
     />
   )
 })

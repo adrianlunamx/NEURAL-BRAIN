@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../utils/api'
-import { toVec3 } from '../utils/animations'
+import { edgeKey, toVec3 } from '../utils/animations'
 
-const EMPTY = { nodes: [], edges: [], stats: { nodes: 0, edges: 0, concepts: 0, facts: 0 } }
+const EMPTY = { nodes: [], edges: [], stats: { nodes: 0, edges: 0, concepts: 0, facts: 0 }, layout: 'brain', brain: null }
 
 /** Fetches GET /api/graph and derives lookup tables used by the scene. */
 export function useGraphData() {
@@ -42,13 +42,15 @@ export function useGraphData() {
       nodeMap.set(node.id, { ...node, vec })
     }
     const neighbors = new Map()
+    const edgeMap = new Map()
     for (const e of graph.edges) {
+      edgeMap.set(edgeKey(e.from, e.to), e)
       if (!neighbors.has(e.from)) neighbors.set(e.from, [])
       if (!neighbors.has(e.to)) neighbors.set(e.to, [])
       neighbors.get(e.from).push(e.to)
       neighbors.get(e.to).push(e.from)
     }
-    return { nodeMap, neighbors, radius: Math.max(radius, 12) }
+    return { nodeMap, neighbors, edgeMap, radius: Math.max(radius, graph.brain?.scale ?? 0, 12) }
   }, [graph])
 
   // stable identity so streaming tokens elsewhere in the app don't re-render the 3D scene

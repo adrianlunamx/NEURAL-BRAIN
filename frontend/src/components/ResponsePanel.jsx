@@ -67,7 +67,7 @@ export default function ResponsePanel({ response, phase, onCite, onClose }) {
   const { question, text, sources, done, error, meta } = response
   const waiting = !text && !error
   return (
-    <aside className="panel pointer-events-auto absolute right-4 top-24 z-20 flex max-h-[calc(100vh-14rem)] w-[min(420px,calc(100%-2rem))] animate-fade-up flex-col">
+    <aside className="panel pointer-events-auto absolute right-4 top-24 z-20 flex max-h-[calc(100vh-22rem)] w-[min(420px,calc(100%-2rem))] animate-fade-up flex-col">
       <header className="flex items-start gap-3 border-b border-white/5 p-4">
         <div className="min-w-0 flex-1">
           <div className="text-[10px] uppercase tracking-[0.3em] text-neon-magenta">query</div>

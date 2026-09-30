@@ -8,10 +8,12 @@ import Connection from './Connection'
 import ThinkingFX from './ThinkingFX'
 import CameraRig from './CameraRig'
 import ShaderWarmup from './ShaderWarmup'
+import PulseRings from './PulseRings'
+import BrainShell from './BrainShell'
 import { AmbientParticles, ThinkingParticles } from './Particles'
-import { NeuronLabel, NeuronTooltip } from './NeuronInfo'
+import { NeuronLabel } from './NeuronInfo'
 import { bump, edgeKey, now } from '../utils/animations'
-import { COLORS } from '../utils/colors'
+import { COLORS, colorForType } from '../utils/colors'
 
 /** Huge inverted sphere painting the #0a0e27 → #1a1f3a vertical gradient. */
 function BackgroundGradient() {
@@ -63,13 +65,14 @@ function PhaseAberration({ phaseAt }) {
   return <ChromaticAberration ref={effect} offset={initial} radialModulation={false} />
 }
 
-function Scene({ graph, scene, hoveredId, selectedId, showLabels, onHover, onSelect, rigRef, autoRotate }) {
-  const { nodes, edges, nodeMap, radius } = graph
+function Scene({ graph, scene, hoveredId, selectedId, showLabels, showShell, onHover, onSelect, rigRef, autoRotate }) {
+  const { nodes, edges, nodeMap, radius, brain } = graph
   const { activeNodes, activeEdges, phase, phaseAt } = scene
   const dimmed = phase !== 'idle' && Object.keys(activeNodes).length > 0
+  const thinking = !['idle', 'answered'].includes(phase)
 
-  const hits = useMemo(
-    () => Object.entries(activeNodes).filter(([id, a]) => a.role === 'hit' && nodeMap.has(id)),
+  const active = useMemo(
+    () => Object.entries(activeNodes).filter(([id]) => nodeMap.has(id)),
     [activeNodes, nodeMap],
   )
 
@@ -83,6 +86,7 @@ function Scene({ graph, scene, hoveredId, selectedId, showLabels, onHover, onSel
 
       <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
       <AmbientParticles radius={radius} />
+      {showShell && brain?.shell?.length > 0 && <BrainShell points={brain.shell} thinking={thinking} />}
       <gridHelper
         args={[radius * 6, 36, COLORS.gridMain, COLORS.gridSub]}
         position={[0, -radius * 1.15, 0]}
@@ -102,6 +106,7 @@ function Scene({ graph, scene, hoveredId, selectedId, showLabels, onHover, onSel
             from={a.vec}
             to={b.vec}
             weight={e.weight}
+            range={e.range}
             activation={activeEdges[key]}
             dimmed={dimmed}
           />
@@ -130,16 +135,25 @@ function Scene({ graph, scene, hoveredId, selectedId, showLabels, onHover, onSel
         nodes
           .filter((n) => n.type === 'concept' && !activeNodes[n.id] && n.id !== hoveredId)
           .map((n) => <NeuronLabel key={`l-${n.id}`} node={nodeMap.get(n.id)} subtle />)}
-      {hits.map(([id, a]) => (
-        <NeuronLabel key={`h-${id}`} node={nodeMap.get(id)} score={a.score} />
-      ))}
-      {hoveredId && nodeMap.get(hoveredId) && <NeuronTooltip node={nodeMap.get(hoveredId)} />}
+      {active.map(([id, a]) => {
+        const node = nodeMap.get(id)
+        return (
+          <PulseRings
+            key={`r-${id}`}
+            position={node.vec}
+            size={node.size}
+            color={a.role === 'bridge' ? '#ffffff' : node.color || colorForType(node.type)}
+            startAt={a.at}
+            calm={phase === 'answered'}
+          />
+        )
+      })}
 
       <ThinkingFX scene={scene} nodeMap={nodeMap} radius={radius} />
       <ThinkingParticles />
       <ShaderWarmup />
 
-      <CameraRig ref={rigRef} autoRotate={autoRotate} homeDistance={Math.max(50, radius * 2.1)} />
+      <CameraRig ref={rigRef} autoRotate={autoRotate} homeDistance={Math.max(45, radius * 2.3)} />
     </>
   )
 }
@@ -165,7 +179,7 @@ function Effects({ dof, phaseAt, focusRef }) {
   )
 }
 
-function BrainCanvas({ graph, scene, hoveredId, selectedId, showLabels, dof, onHover, onSelect, onBackground, rigRef, autoRotate }) {
+function BrainCanvas({ graph, scene, hoveredId, selectedId, showLabels, showShell, dof, onHover, onSelect, onBackground, rigRef, autoRotate }) {
   const handleMissed = useCallback((e) => e.type === 'dblclick' && onBackground?.(), [onBackground])
 
   // cursor feedback for hover
@@ -188,6 +202,7 @@ function BrainCanvas({ graph, scene, hoveredId, selectedId, showLabels, dof, onH
         hoveredId={hoveredId}
         selectedId={selectedId}
         showLabels={showLabels}
+        showShell={showShell}
         onHover={onHover}
         onSelect={onSelect}
         rigRef={rigRef}

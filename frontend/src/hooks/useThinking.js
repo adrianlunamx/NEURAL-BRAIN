@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { streamQuery } from '../utils/api'
-import { PHASES, edgeCurve, edgeKey, now } from '../utils/animations'
+import { EDGE_BOW, PHASES, edgeCurve, edgeKey, now } from '../utils/animations'
 import { COLORS } from '../utils/colors'
 import { particleBus } from '../utils/particleBus'
 
@@ -23,14 +23,14 @@ const EMPTY_RESPONSE = null
  * 1500-2000ms). Each phase starts at the later of "its slot" and "when the
  * data arrived", so the animation never runs ahead of the real reasoning.
  */
-export function useThinking({ nodeMap, radius, onGraphStale }) {
+export function useThinking({ nodeMap, edgeMap, radius, onGraphStale }) {
   const [scene, setScene] = useState(IDLE_SCENE)
   const [response, setResponse] = useState(EMPTY_RESPONSE)
   const timers = useRef([])
   const abortRef = useRef(null)
   const run = useRef(0)
-  const graphRef = useRef({ nodeMap, radius })
-  graphRef.current = { nodeMap, radius }
+  const graphRef = useRef({ nodeMap, edgeMap, radius })
+  graphRef.current = { nodeMap, edgeMap, radius }
 
   const clearTimers = () => {
     timers.current.forEach(clearTimeout)
@@ -66,7 +66,7 @@ export function useThinking({ nodeMap, radius, onGraphStale }) {
       const myRun = run.current
       const alive = () => run.current === myRun
       const k = animate ? 1 : 0 // collapses every delay when animations are off
-      const { nodeMap: nodes, radius: R } = graphRef.current
+      const { nodeMap: nodes, edgeMap: edgeInfo, radius: R } = graphRef.current
       const t0 = now()
 
       const trace = import.meta.env.DEV ? (window.__nbTimeline = []) : null
@@ -80,7 +80,7 @@ export function useThinking({ nodeMap, radius, onGraphStale }) {
         timers.current.push(id)
       }
 
-      const queryPos = new THREE.Vector3(0, R * 0.62 + 2, 0)
+      const queryPos = new THREE.Vector3(0, R * 0.95 + 3, 0)
       const tl = { input: t0, search: null, connect: null, synthesize: null }
       let hits = []
       let involved = [] // hits + bridges, for the synthesis convergence
@@ -113,7 +113,8 @@ export function useThinking({ nodeMap, radius, onGraphStale }) {
           // the scan wave reaches nearer neurons first
           const reach = ((dists[i] - dMin) / (dMax - dMin + 1e-6)) * 0.4 * k
           const nodeAt = tl.search + 0.06 * k + reach
-          activeNodes[h.id] = { at: nodeAt, role: 'hit', rank: h.rank, score: h.score, cascade: [] }
+          const percentage = data.percentages?.[h.id] ?? h.percentage ?? Math.round(h.score * 100)
+          activeNodes[h.id] = { at: nodeAt, role: 'hit', rank: h.rank, score: h.score, percentage, cascade: [] }
           if (animate) {
             particleBus.emit({
               kind: 'travel',
@@ -149,7 +150,7 @@ export function useThinking({ nodeMap, radius, onGraphStale }) {
             particleBus.emit({
               kind: 'travel',
               at: edgeAt,
-              curve: edgeCurve(nodes.get(e.from).vec, nodes.get(e.to).vec),
+              curve: edgeCurve(nodes.get(e.from).vec, nodes.get(e.to).vec, EDGE_BOW[edgeInfo?.get(edgeKey(e.from, e.to))?.range] ?? EDGE_BOW.local),
               color: COLORS.edgeActive,
               count: 22,
               duration: 0.42,

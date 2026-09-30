@@ -67,6 +67,9 @@ class GraphNode(BaseModel):
     id: str
     label: str
     type: NodeType
+    color: str = "#39ff14"
+    region: str | None = None
+    lobe: str | None = None
     content: str = ""
     tags: list[str] = Field(default_factory=list)
     position: Position
@@ -82,6 +85,7 @@ class GraphEdge(BaseModel):
     to: str
     weight: float
     kind: str = "semantic"
+    range: Literal["local", "long"] = "local"
 
 
 class GraphStats(BaseModel):
@@ -91,10 +95,17 @@ class GraphStats(BaseModel):
     facts: int
 
 
+class BrainShape(BaseModel):
+    scale: float
+    shell: list[list[float]]
+
+
 class GraphResponse(BaseModel):
     nodes: list[GraphNode]
     edges: list[GraphEdge]
     stats: GraphStats
+    layout: Literal["brain", "force"] = "brain"
+    brain: BrainShape | None = None
 
 
 class ThinkingEvent(BaseModel):

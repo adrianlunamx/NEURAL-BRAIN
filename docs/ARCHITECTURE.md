@@ -32,11 +32,34 @@ Si al arrancar no coinciden (p. ej. un crash a mitad de ingesta) se reinician en
 
 Todo ocurre bajo un `asyncio.Lock` y en un hilo (`asyncio.to_thread`) para no bloquear el event loop.
 
-## Layout 3D (`utils/graph_layout.py`)
+## Layout anatómico (`utils/brain_shape.py`, modo `brain`, por defecto)
 
-Fruchterman–Reingold de NetworkX con `dim=3`, ponderado por `weight`. Dos detalles:
+La superficie del cerebro es una función analítica `cortex_radius(dirección)`: un elipsoide con la parte
+frontal más estrecha, la base aplanada, lóbulos temporales abultados, la cisura longitudinal entre
+hemisferios y un rizado barato que imita circunvoluciones. El cerebelo y el hipocampo son elipsoides aparte.
 
-- **Escala dinámica**: `10 + 2.2·√n`, para que un cerebro grande no colapse en una bola.
+1. **Regiones**: comunidades de Louvain (ponderadas por `weight`, semilla fija) → regiones. La comunidad
+   más grande va a la región con más capacidad (frontal izq./der., parietal, temporal, occipital,
+   cerebelo, hipocampo). Si hay más comunidades que regiones, se reparten en la menos ocupada.
+2. **Anclas**: cada neurona recibe un punto determinista (semilla = hash del id) dentro de su región:
+   un cono de la corteza en su hemisferio, o el volumen del elipsoide. Conceptos al 88–98 % del radio
+   (corteza), hechos al 62–90 % (más profundo).
+3. **Relajación** (60 iteraciones, 20 si ya había posiciones): repulsión por debajo de una distancia
+   mínima, muelles a lo largo de las sinapsis (fuertes dentro de una región, débiles entre regiones) y un
+   muelle al ancla. Tras cada paso se proyecta de vuelta bajo la corteza y al hemisferio correcto.
+4. Si una neurona ya existía y sigue en la misma región, parte de su posición anterior: añadir notas no
+   reordena el cerebro.
+
+`GET /api/graph` añade `region`/`lobe`/`color` a cada nodo, `range: local | long` a cada arista (long =
+une lóbulos o hemisferios distintos, se dibuja como un arco violeta) y `brain.shell`: ~2400 puntos
+sobre la misma superficie para la silueta holográfica.
+
+## Layout force (`utils/graph_layout.py`, `LAYOUT_MODE=force`)
+
+Fruchterman–Reingold de NetworkX con `dim=3`, 200 iteraciones, `k = 2.5/√n` (más separación) y un
+desplazamiento por tipo que separa conceptos y hechos en dos clusters. Dos detalles:
+
+- **Escala dinámica**: `15 + 1.6·√n` (compartida por ambos layouts), para que un cerebro grande no colapse en una bola.
 - **Estabilidad**: las posiciones anteriores son el punto de partida y los nodos nuevos nacen junto a
   sus vecinos, así añadir una nota "empuja" el cerebro en lugar de reordenarlo entero.
 
@@ -93,7 +116,11 @@ que la neurona-respuesta emerge, para que el texto aparezca con ella.
 | `ThinkingParticles` | pool de 4000 puntos en un único `BufferGeometry`, alimentado por `particleBus` (burst / travel por curva) |
 | `AmbientParticles` | polvo con deriva calculada en el vertex shader |
 | `ThinkingFX` | neurona-consulta, ondas (fresnel en modo *rim*), plano de escaneo, rayos, neurona-respuesta |
-| `CameraRig` | `OrbitControls` con damping + vuelos con easing (`focusOn`, `home`) |
+| `CameraRig` | `OrbitControls` (zoom 10–100, pan, damping) + vuelos con easing (`focusOn`, `frame`, `home`) |
+| `useAutoZoom` | al empezar SEARCH encuadra las neuronas activas + la consulta; al cerrar la respuesta vuelve a HOME |
+| `PulseRings` | tres anillos escalonados que se expanden desde cada neurona activa, siempre de cara a la cámara |
+| `BrainShell` | nube de puntos de la silueta con parpadeo y una banda de escaneo; se ilumina al pensar |
+| `Neuron` (dendritas) | soma + 4–6 dendritas ramificadas + un axón largo, generadas de forma determinista por id; etiqueta sólo en hover o si es un resultado |
 | `ShaderWarmup` | compila por adelantado los materiales de las animaciones para evitar tirones al primer uso |
 
 Post-procesado: `Bloom` (mipmap blur) → `ChromaticAberration` (pico en cada cambio de fase) → `Vignette`,

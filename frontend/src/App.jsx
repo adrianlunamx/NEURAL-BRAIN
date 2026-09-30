@@ -1,26 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import BrainCanvas from './components/BrainCanvas'
 import Controls from './components/Controls'
+import Header from './components/Header'
 import IngestPanel from './components/IngestPanel'
 import QueryInput from './components/QueryInput'
 import ResponsePanel from './components/ResponsePanel'
 import { NeuronInfoPanel } from './components/NeuronInfo'
-import { EmptyState, Header, Legend, PhaseIndicator, Toasts } from './components/Hud'
+import { EmptyState, Legend, Toasts } from './components/Hud'
 import { useBrain } from './hooks/useBrain'
 import { useGraphData } from './hooks/useGraphData'
 import { useThinking } from './hooks/useThinking'
+import { useAutoZoom } from './hooks/useAutoZoom'
+
+const DEFAULT_OPTIONS = { animate: true, autoZoom: true, labels: false, shell: true, dof: false }
 
 const loadOptions = () => {
   try {
-    return { animate: true, labels: false, dof: false, ...JSON.parse(localStorage.getItem('nb:options') || '{}') }
+    return { ...DEFAULT_OPTIONS, ...JSON.parse(localStorage.getItem('nb:options') || '{}') }
   } catch {
-    return { animate: true, labels: false, dof: false }
+    return DEFAULT_OPTIONS
   }
 }
 
 export default function App() {
   const graph = useGraphData()
   const rig = useRef()
+  const inputRef = useRef()
   const [hoveredId, setHoveredId] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
   const [ingestOpen, setIngestOpen] = useState(false)
@@ -36,9 +41,12 @@ export default function App() {
   const { health, busy, ingest, seed, reset } = useBrain({ onChange: graph.refresh, notify })
   const { scene, response, thinking, ask, clear, cancel } = useThinking({
     nodeMap: graph.nodeMap,
+    edgeMap: graph.edgeMap,
     radius: graph.radius,
     onGraphStale: graph.refresh,
   })
+
+  useAutoZoom(rig, scene, graph.nodeMap, options.autoZoom)
 
   const setOption = useCallback((key, value) => {
     setOptions((o) => {
@@ -99,6 +107,7 @@ export default function App() {
         hoveredId={hoveredId}
         selectedId={selectedId}
         showLabels={options.labels}
+        showShell={options.shell}
         dof={options.dof}
         onHover={setHoveredId}
         onSelect={select}
@@ -108,18 +117,19 @@ export default function App() {
       />
 
       <div className="pointer-events-none absolute inset-0">
-        <Header stats={graph.stats} health={health} error={graph.error} />
-        <PhaseIndicator phase={scene.phase} />
-        <Controls
+        <Header
+          stats={graph.stats}
+          health={health}
+          error={graph.error}
+          phase={scene.phase}
           busy={busy}
           thinking={thinking}
-          options={options}
-          setOption={setOption}
+          onFocusInput={() => inputRef.current?.focus()}
           onIngest={() => setIngestOpen(true)}
           onSeed={() => seed().catch(() => {})}
           onReset={handleReset}
-          onHome={home}
         />
+        <Controls options={options} setOption={setOption} onHome={home} />
         {empty && <EmptyState onSeed={() => seed().catch(() => {})} onIngest={() => setIngestOpen(true)} busy={busy} />}
         {graph.error && (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 panel p-5 text-center font-mono text-sm text-slate-400">
@@ -136,7 +146,7 @@ export default function App() {
         />
         <ResponsePanel response={response} phase={scene.phase} onCite={select} onClose={clear} />
         <Legend />
-        <QueryInput onAsk={handleAsk} onCancel={cancel} thinking={thinking} disabled={!!graph.error} empty={empty} compact={!!response} />
+        <QueryInput inputRef={inputRef} onAsk={handleAsk} onCancel={cancel} thinking={thinking} disabled={!!graph.error} empty={empty} compact={!!response} />
         <IngestPanel open={ingestOpen} onClose={() => setIngestOpen(false)} onSubmit={ingest} busy={busy} />
         <Toasts toasts={toasts} />
       </div>

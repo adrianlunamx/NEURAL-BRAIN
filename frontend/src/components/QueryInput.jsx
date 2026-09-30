@@ -8,10 +8,11 @@ const SUGGESTIONS = [
 ]
 
 /** Terminal-style prompt. Enter to ask, ↑ to recall the last question, Esc to cancel. */
-export default function QueryInput({ onAsk, onCancel, thinking, disabled, empty, compact }) {
+export default function QueryInput({ inputRef, onAsk, onCancel, thinking, disabled, empty, compact }) {
   const [value, setValue] = useState('')
   const [last, setLast] = useState('')
-  const input = useRef()
+  const ownRef = useRef()
+  const input = inputRef || ownRef
 
   useEffect(() => {
     const onKey = (e) => {
@@ -22,7 +23,7 @@ export default function QueryInput({ onAsk, onCancel, thinking, disabled, empty,
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [input])
 
   const submit = (text = value) => {
     const q = text.trim()
