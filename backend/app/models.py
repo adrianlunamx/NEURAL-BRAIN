@@ -167,7 +167,9 @@ class HookEventRequest(BaseModel):
     cwd: str = Field(default="")
     extra: Dict[str, Any] = Field(default_factory=dict)
     # live activity (all optional: old hook handlers keep working)
-    event: str = Field(default="PostToolUse", description="Claude Code hook event name")
+    client: str = Field(default="claude-code", max_length=40,
+                        description="which agent sent it: claude-code | cursor | codex | gemini | aider | ...")
+    event: str = Field(default="PostToolUse", description="hook event name (Claude Code vocabulary)")
     session_id: str = Field(default="")
     agent_id: str = Field(default="", description="subagent id; empty = main agent")
     agent_type: str = Field(default="")

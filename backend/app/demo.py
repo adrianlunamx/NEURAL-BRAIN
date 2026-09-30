@@ -1,6 +1,7 @@
-"""'Probar': a short simulated Claude Code session, replayed through the real hook pipeline.
+"""'Probar': a short simulated agent session, replayed through the real hook pipeline.
 
-Two sessions work in parallel (a main agent that launches subagents), so the
+Two agents work in parallel: Claude Code on "neural-brain" (a main agent that
+launches subagents) and Cursor on "web-app", so the
 "Ahora" panel, the file list, the waveform and the agent markers all move
 without a real Claude Code attached.
 """
@@ -70,6 +71,7 @@ async def run_demo(record: Callable[[HookEventRequest], Awaitable[object]],
             hook_type=HOOK_TYPE.get(tool, "session" if not tool else "command"),
             tool_name=tool,
             summary=f"{tool}: {target}" if tool else target,
+            client="cursor" if project == "web-app" else "claude-code",
             cwd=f"/home/usuario/{project}",
             session_id=f"demo-{project}-{run}",
             agent_id=f"{agent}-{run}" if agent else "",

@@ -1,6 +1,7 @@
-"""Live activity of Claude Code: sessions, subagents, actions and edited files.
+"""Live activity of coding agents: sessions, subagents, actions and edited files.
 
-Fed by the Claude Code hooks (POST /hooks/event). Powers the "Ahora" panel,
+Fed by agent hooks (POST /hooks/event): Claude Code, Cursor, Codex or any
+agent/script that posts events (see backend/hooks/). Powers the "Ahora" panel,
 "Programando (última media hora)", the activity waveform and the agent
 markers that travel across the notes graph.
 """
@@ -52,7 +53,7 @@ def derive_action(tool_name: str, hook_type: str, target: str) -> str:
 
 
 def project_name(cwd: str) -> str:
-    return PurePath(cwd).name if cwd else "claude"
+    return PurePath(cwd).name if cwd else "agente"
 
 
 @dataclass
@@ -78,6 +79,7 @@ class Agent:
 class Session:
     id: str
     project: str
+    client: str = "claude-code"
     status: str = "trabajando"
     detail: str = ""
     last_at: float = 0.0
@@ -97,11 +99,13 @@ class ActivityStore:
         self.note_usage: Dict[str, int] = {}   # note id -> times an action touched it
 
     # ------------------------------------------------------------------
-    def _session(self, session_id: str, cwd: str, now: float) -> Session:
-        sid = session_id or f"cwd:{cwd or 'claude'}"
+    def _session(self, session_id: str, cwd: str, now: float, client: str = "claude-code") -> Session:
+        client = client or "claude-code"
+        # two agents may reuse ids (or send none): the client is part of the key
+        sid = f"{client}:{session_id or 'cwd:' + (cwd or 'agent')}"
         s = self.sessions.get(sid)
         if s is None:
-            s = self.sessions[sid] = Session(id=sid, project=project_name(cwd), last_at=now)
+            s = self.sessions[sid] = Session(id=sid, project=project_name(cwd), client=client, last_at=now)
             s.agents["main"] = Agent(key="main", num=0, kind="principal", last_at=now)
         return s
 
@@ -129,11 +133,11 @@ class ActivityStore:
     def record(self, *, event: str, session_id: str, cwd: str, agent_id: str, agent_type: str,
                tool_name: str, hook_type: str, action: str, target: str, summary: str,
                lines_added: int = 0, lines_removed: int = 0, note_id: Optional[str] = None,
-               now: Optional[float] = None) -> dict:
+               client: str = "claude-code", now: Optional[float] = None) -> dict:
         """Store one hook event and return the activity event for the SSE stream."""
         now = time.time() if now is None else now
         with self.lock:
-            s = self._session(session_id, cwd, now)
+            s = self._session(session_id, cwd, now, client)
             s.last_at = now
             agent = self._agent(s, agent_id, agent_type, now)
             action = action or derive_action(tool_name, hook_type, target)
@@ -182,6 +186,7 @@ class ActivityStore:
                 "event": event,
                 "session_id": s.id,
                 "project": s.project,
+                "client": s.client,
                 "agent": agent.key,
                 "agent_label": agent.label(s.project),
                 "agent_num": agent.num,
@@ -208,7 +213,7 @@ class ActivityStore:
                     status = "en reposo"
                 agents = [a for a in s.agents.values() if a.num > 0]
                 sessions.append({
-                    "id": s.id, "project": s.project, "status": status, "detail": s.detail,
+                    "id": s.id, "project": s.project, "client": s.client, "status": status, "detail": s.detail,
                     "last_at": s.last_at,
                     "main": _agent_dto(s.agents["main"], s.project),
                     "agents": [_agent_dto(a, s.project) for a in sorted(agents, key=lambda a: a.num)],

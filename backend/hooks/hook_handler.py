@@ -79,6 +79,7 @@ def build_event(payload: dict) -> dict | None:
     tool_name = str(payload.get("tool_name", ""))
     tool_input = payload.get("tool_input", {}) or {}
     base = {
+        "client": "claude-code",
         "event": event,
         "cwd": str(payload.get("cwd", "")),
         "session_id": str(payload.get("session_id", "")),
