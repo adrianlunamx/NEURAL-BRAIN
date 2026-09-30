@@ -1,68 +1,34 @@
 # API
 
-Base: `http://localhost:8000/api` · OpenAPI interactiva en `http://localhost:8000/docs`.
+Base `http://localhost:8000` · Swagger en `/docs`. Modelos en `backend/app/models.py`.
 
-## `POST /ingest`
+| Método | Ruta | Request | Response |
+|---|---|---|---|
+| GET | `/health` | — | `{ok, service, llm, model, embeddings}` |
+| POST | `/ingest` | `{text, source="manual", region_hint?, label?}` | `{neuron_ids, count}` — una neurona por frase, máx. 12 |
+| POST | `/query` | `{text, top_k=8}` (1–20) | `{query_id, hits:[{id,label,region,score,position}]}`; 409 si ya hay una consulta en curso |
+| GET | `/graph?detail=` | `low` `medium` `high` `ultra` | `{nodes:[{id,label,region,x,y,z,size,color}], edges:[{source,target,weight,type}], total_neurons, detail}` |
+| GET | `/fibers` | — | `[{source,target,start,end,weight}]` |
+| GET | `/events/stream` | — | SSE (ver abajo) |
+| POST | `/hooks/event` | `{hook_type, tool_name, summary, cwd, extra}` | `{ok, neuron_id, region, recycled}` |
+| GET | `/regions` | — | `[{region, neuron_count, color, center, radii}]` |
+| GET | `/stats` | — | `{total_neurons, total_edges, total_events, phase}` |
+| POST | `/git/commit` | `{message?}` | `{commit_hash, message}` |
+| GET | `/git/log?limit=20` | — | `[{hash, message, committed_at}]` |
+| POST | `/git/restore` | `{commit_hash}` | `{ok, commit_hash}`; 404 si no existe |
 
-```json
-{ "content": "texto (1–20000 chars)",
-  "metadata": { "type": "fact | concept", "tags": ["..."], "title": "opcional", "source": "opcional" } }
-```
+`hook_type` → región: `file_read` temporal · `file_search` parietal · `file_edit` frontal ·
+`agent_launch` hipocampo · `command` cerebelo.
 
-→ `200`
-```json
-{ "node_id": "f_3a9c1b2d4e", "connections": 3, "created": true, "concepts": ["c_memoria"] }
-```
+## SSE (`/events/stream`)
 
-`created: false` si el mismo texto ya existía (devuelve su id). Los tags se normalizan a minúsculas y cada uno
-se convierte en una neurona-concepto `c_<slug>`.
+Cada mensaje: `event: <tipo>` + `data: {"event_type", "payload", "timestamp"}`.
 
-## `POST /query` — Server-Sent Events
-
-```json
-{ "question": "texto (1–2000 chars)", "animate": true }
-```
-
-`animate: false` elimina las pausas artificiales entre fases.
-
-Respuesta `text/event-stream`. Cada evento lleva `event: <type>` y `data: <json>` con la forma
-`{ "type", "data", "timestamp" }`:
-
-| type | data |
+| event | payload |
 |---|---|
-| `search` | `{ question, nodes: [{ id, score, percentage, rank, label, type, content }], percentages: { id: % } }` — `percentage` es relativo a la mejor coincidencia (= 100) |
-| `connect` | `{ paths: [[id, …]], edges: [{ from, to, weight }], bridges: [id] }` |
-| `token` | `{ text }` — fragmento de la respuesta (N veces) |
-| `synthesize` | `{ answer, sources: [{ id, label, type, score, content }], model, offline, stop_reason }` |
-| `error` | `{ message }` |
-| `done` | `{}` — siempre el último |
-
-`EventSource` sólo admite GET: en el navegador usa `fetch` + `ReadableStream` (ver `frontend/src/utils/api.js`).
-
-## `GET /graph`
-
-```json
-{ "nodes": [{ "id", "label", "type", "color", "region", "lobe", "content", "tags",
-               "position": { "x", "y", "z" }, "size", "degree", "created_at" }],
-  "edges": [{ "from", "to", "weight", "kind": "semantic | tag", "range": "local | long" }],
-  "stats": { "nodes", "edges", "concepts", "facts" },
-  "layout": "brain | force",
-  "brain": { "scale", "shell": [[x, y, z], …] } }   // null con LAYOUT_MODE=force
-```
-
-## `GET /node/{id}`
-
-Nodo completo + `neighbors: [{ id, label, weight }]`. `404` si no existe.
-
-## `POST /seed`
-
-Ingesta `backend/data/seed.json` (30 recuerdos). Idempotente: los ya existentes no se duplican.
-→ `{ "ingested": 30, "stats": {…} }`
-
-## `DELETE /reset`
-
-Borra vectores y grafo. → `{ "ok": true, "message": "Brain wiped" }`
-
-## `GET /health`
-
-`{ "status": "ok", "llm": true, "model": "claude-opus-5-5", "embeddings": "sentence-transformers", "vector_store": "chromadb", "stats": {…} }`
+| `phase` | `{phase, query_id, …}` — INPUT: `text, position` · SEARCH: `status, query_position, targets[]` · CONNECT: `hits[], query_position` · SYNTHESIZE: `summary, summary_source (claude\|extractive), center, converged_ids, hits` · IDLE |
+| `neuron_added` | `{id, label, region, position, color, size}` |
+| `neuron_activated` | `{id, amount}` |
+| `edge_added` | `{source, target, weight, type}` |
+| `stats` | `{total_neurons, total_edges, total_events, phase}` |
+| `graph_reloaded` | stats tras un `git/restore` |
