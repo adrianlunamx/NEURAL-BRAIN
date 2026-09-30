@@ -10,7 +10,7 @@ from typing import Any
 import networkx as nx
 
 from utils.brain_shape import BrainShapeLayout, lobe
-from utils.graph_layout import compute_3d_layout, layout_scale
+from utils.graph_layout import NEAR_DISTANCE, compute_3d_layout, compute_oval_layout, layout_scale, oval_scale
 from utils.logger import logger
 
 NODE_TYPES = {"concept", "fact"}
@@ -18,10 +18,10 @@ TYPE_COLORS = {"concept": "#00f5ff", "fact": "#39ff14"}
 
 
 class GraphStore:
-    def __init__(self, path: Path, layout_iterations: int = 200, layout_mode: str = "brain"):
+    def __init__(self, path: Path, layout_iterations: int = 200, layout_mode: str = "oval"):
         self.path = Path(path)
         self.layout_iterations = layout_iterations
-        self.layout_mode = layout_mode if layout_mode in {"brain", "force"} else "brain"
+        self.layout_mode = layout_mode if layout_mode in {"oval", "brain", "force"} else "oval"
         self.brain_layout = BrainShapeLayout()
         self.graph = nx.Graph()
         self._positions: dict[str, dict[str, float]] = {}
@@ -91,12 +91,15 @@ class GraphStore:
 
     @property
     def scale(self) -> float:
-        return layout_scale(self.graph.number_of_nodes())
+        n = self.graph.number_of_nodes()
+        return oval_scale(n) if self.layout_mode == "oval" else layout_scale(n)
 
     def positions(self) -> dict[str, dict]:
         if self._dirty:
             if self.layout_mode == "brain":
                 self._positions = self.brain_layout.compute(self.graph, self.scale, previous=self._positions)
+            elif self.layout_mode == "oval":
+                self._positions = compute_oval_layout(self.graph, self.layout_iterations, previous=self._positions)
             else:
                 self._positions = compute_3d_layout(self.graph, self.layout_iterations, previous=self._positions)
             self._dirty = False
@@ -106,6 +109,8 @@ class GraphStore:
     def node_size(self, node_id: str) -> float:
         data = self.graph.nodes[node_id]
         degree = self.graph.degree(node_id)
+        if self.layout_mode == "oval":  # near-uniform 0.3-0.5
+            return round(min(0.3 + 0.025 * degree, 0.5), 3)
         base = 0.5 if data.get("type") == "concept" else 0.35
         return round(min(base + 0.04 * degree, 1.0), 3)
 
@@ -160,6 +165,14 @@ class GraphStore:
                 "degree": self.graph.degree(node_id),
                 "created_at": data.get("created_at"),
             })
+        near = NEAR_DISTANCE * self.scale / 12.0
+
+        def dist(u: str, v: str) -> float:
+            a, b = pos.get(u), pos.get(v)
+            if not a or not b:
+                return 0.0
+            return ((a["x"] - b["x"]) ** 2 + (a["y"] - b["y"]) ** 2 + (a["z"] - b["z"]) ** 2) ** 0.5
+
         edges = [
             {
                 "from": u,
@@ -168,6 +181,9 @@ class GraphStore:
                 "kind": d.get("kind", "semantic"),
                 "range": BrainShapeLayout.edge_range(pos.get(u, {}).get("region"), pos.get(v, {}).get("region"))
                 if self.layout_mode == "brain" else "local",
+                "distance": round(dist(u, v), 3),
+                # idle view draws only short synapses; long ones appear when they carry a thought
+                "near": dist(u, v) < near,
             }
             for u, v, d in self.graph.edges(data=True)
         ]

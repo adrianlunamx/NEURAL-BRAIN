@@ -86,6 +86,8 @@ class GraphEdge(BaseModel):
     weight: float
     kind: str = "semantic"
     range: Literal["local", "long"] = "local"
+    distance: float = 0.0
+    near: bool = True
 
 
 class GraphStats(BaseModel):
@@ -104,7 +106,7 @@ class GraphResponse(BaseModel):
     nodes: list[GraphNode]
     edges: list[GraphEdge]
     stats: GraphStats
-    layout: Literal["brain", "force"] = "brain"
+    layout: Literal["oval", "brain", "force"] = "oval"
     brain: BrainShape | None = None
 
 
