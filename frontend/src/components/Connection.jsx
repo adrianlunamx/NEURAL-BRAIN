@@ -4,7 +4,7 @@ import { QuadraticBezierLine } from '@react-three/drei'
 import * as THREE from 'three'
 import pulseSource from '../shaders/connectionPulse.glsl?raw'
 import { splitShader } from '../utils/shader'
-import { easeOutCubic, edgeCurve, hash01, now } from '../utils/animations'
+import { EDGE_BOW, easeOutCubic, edgeCurve, hash01, now } from '../utils/animations'
 import { COLORS } from '../utils/colors'
 
 const PULSE = splitShader(pulseSource)
@@ -12,13 +12,14 @@ const SEGMENTS = 28
 
 /**
  * Synapse between two neurons.
- * - idle: dim blue curve (#4169e1, ~0.3 opacity) with a shimmer running along it
+ * - idle: dim blue curve (#4169e1, ~0.3 opacity) with a shimmer running along it;
+ *   long-range fibres (between lobes / hemispheres) arc higher and turn violet
  * - active: turns white, an electric current travels through it, plus a dashed
  *   "fat" overlay whose dashes flow from source to target.
  */
-function Connection({ id, from, to, weight = 0.5, activation, dimmed }) {
+function Connection({ id, from, to, weight = 0.5, range = 'local', activation, dimmed }) {
   const overlay = useRef()
-  const curve = useMemo(() => edgeCurve(from, to), [from, to])
+  const curve = useMemo(() => edgeCurve(from, to, EDGE_BOW[range] ?? EDGE_BOW.local), [from, to, range])
 
   const geometry = useMemo(() => {
     const pts = curve.getPoints(SEGMENTS)
@@ -32,7 +33,7 @@ function Connection({ id, from, to, weight = 0.5, activation, dimmed }) {
       new THREE.ShaderMaterial({
         ...PULSE,
         uniforms: {
-          uColor: { value: new THREE.Color(COLORS.edge) },
+          uColor: { value: new THREE.Color(range === 'long' ? COLORS.edgeLong : COLORS.edge) },
           uActiveColor: { value: new THREE.Color(COLORS.edgeActive) },
           uOpacity: { value: 0.3 },
           uActive: { value: 0 },
@@ -45,7 +46,7 @@ function Connection({ id, from, to, weight = 0.5, activation, dimmed }) {
         blending: THREE.AdditiveBlending,
         toneMapped: false,
       }),
-    [id],
+    [id, range],
   )
 
   const line = useMemo(() => new THREE.Line(geometry, material), [geometry, material])

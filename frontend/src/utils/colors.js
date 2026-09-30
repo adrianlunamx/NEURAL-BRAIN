@@ -8,6 +8,8 @@ export const COLORS = {
   answer: '#ffe600',
   edge: '#4169e1',
   edgeActive: '#ffffff',
+  edgeLong: '#7b61ff',
+  shell: '#3d6bff',
   gridMain: '#1a1f3a',
   gridSub: '#10142e',
 }

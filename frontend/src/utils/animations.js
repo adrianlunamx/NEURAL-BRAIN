@@ -13,7 +13,8 @@ export const PHASES = {
   settle: 2.0,
 }
 
-export const IDLE_ROTATION_RPM = 0.1
+// OrbitControls autoRotateSpeed (three-stdlib: 1 ≈ one turn per minute at 60fps)
+export const IDLE_ROTATE_SPEED = 0.5
 
 // ── easing ────────────────────────────────────────────────────
 export const clamp01 = (x) => Math.min(1, Math.max(0, x))
@@ -45,14 +46,17 @@ export const idlePulse = (t, phase = 0) => 1.025 + 0.025 * Math.sin(t * Math.PI 
 // ── geometry ──────────────────────────────────────────────────
 const _up = new THREE.Vector3(0, 1, 0)
 
-/** Gently curved edge between two points, bowed away from the brain's centre. */
-export function edgeCurve(a, b) {
+/** Bow for each fibre type: long-range fibres arc like the corpus callosum. */
+export const EDGE_BOW = { local: 0.12, long: 0.38 }
+
+/** Curved edge between two points, bowed away from the brain's centre. */
+export function edgeCurve(a, b, bow = EDGE_BOW.local) {
   const start = a instanceof THREE.Vector3 ? a : new THREE.Vector3(...a)
   const end = b instanceof THREE.Vector3 ? b : new THREE.Vector3(...b)
   const mid = start.clone().add(end).multiplyScalar(0.5)
   const len = start.distanceTo(end)
   const outward = mid.lengthSq() > 1e-4 ? mid.clone().normalize() : _up.clone()
-  const control = mid.add(outward.multiplyScalar(len * 0.12))
+  const control = mid.add(outward.multiplyScalar(len * bow))
   return new THREE.QuadraticBezierCurve3(start, control, end)
 }
 

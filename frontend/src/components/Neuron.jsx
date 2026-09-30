@@ -1,14 +1,54 @@
 import { memo, useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import glowSource from '../shaders/neuronGlow.glsl?raw'
 import { splitShader } from '../utils/shader'
 import { bump, easeOutCubic, hash01, idlePulse, now, popScale } from '../utils/animations'
-import { colorForType } from '../utils/colors'
+import { colorForType, TYPE_LABELS } from '../utils/colors'
 
 const GLOW = splitShader(glowSource)
 const WHITE = new THREE.Color('#ffffff')
 const SPHERE = new THREE.SphereGeometry(1, 32, 32)
+
+/**
+ * Dendrites + axon as line segments in neuron-local units (soma radius = 1).
+ * Deterministic per id so a neuron always keeps the same silhouette.
+ */
+function buildDendrites(id) {
+  let seed = Math.floor(hash01(id) * 1e6) + 1
+  const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646
+  const dir = () => new THREE.Vector3(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1).normalize()
+  const pts = []
+  const segment = (a, b) => pts.push(a.x, a.y, a.z, b.x, b.y, b.z)
+
+  const branch = (origin, d, length, depth) => {
+    const end = origin.clone().add(d.clone().multiplyScalar(length))
+    segment(origin, end)
+    if (depth === 0) return
+    for (let i = 0; i < 2; i++) {
+      const nd = d.clone().add(dir().multiplyScalar(0.7)).normalize()
+      branch(end, nd, length * (0.55 + rand() * 0.2), depth - 1)
+    }
+  }
+  const count = 4 + Math.floor(rand() * 3)
+  for (let i = 0; i < count; i++) {
+    const d = dir()
+    branch(d.clone().multiplyScalar(0.95), d, 0.9 + rand() * 0.6, 2)
+  }
+  // one long axon with a terminal fork
+  const axon = dir()
+  const tip = axon.clone().multiplyScalar(4 + rand() * 1.5)
+  const bend = axon.clone().multiplyScalar(2).add(dir().multiplyScalar(0.5))
+  segment(axon.clone().multiplyScalar(0.95), bend)
+  segment(bend, tip)
+  branch(tip, axon.clone().add(dir().multiplyScalar(0.8)).normalize(), 0.6, 1)
+  branch(tip, axon.clone().add(dir().multiplyScalar(0.8)).normalize(), 0.6, 1)
+
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
+  return g
+}
 
 export function createGlowMaterial(color, { power = 2.4, intensity = 0.4, rim = false } = {}) {
   return new THREE.ShaderMaterial({
@@ -42,6 +82,26 @@ function Neuron({ data, activation, phase, phaseAt, hovered, selected, dimmed, o
   useEffect(() => () => glowMat.dispose(), [glowMat])
   const bornAt = useRef(now())
   const tmpColor = useMemo(() => new THREE.Color(), [])
+  const dendriteGeo = useMemo(() => buildDendrites(data.id), [data.id])
+  const dendriteMat = useMemo(
+    () =>
+      new THREE.LineBasicMaterial({
+        color: baseColor,
+        transparent: true,
+        opacity: 0.3,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    [baseColor],
+  )
+  useEffect(
+    () => () => {
+      dendriteGeo.dispose()
+      dendriteMat.dispose()
+    },
+    [dendriteGeo, dendriteMat],
+  )
 
   useFrame((_, delta) => {
     const t = now()
@@ -85,7 +145,14 @@ function Neuron({ data, activation, phase, phaseAt, hovered, selected, dimmed, o
     u.uTime.value = t
     u.uColor.value.copy(tmpColor)
     u.uIntensity.value = (0.5 + 0.7 * a + 1.2 * flash + 0.7 * cascade + 0.5 * sync + 0.5 * hover) * dim
+
+    dendriteMat.color.copy(tmpColor)
+    dendriteMat.opacity = Math.min(1, (0.28 + 0.5 * a + 0.6 * cascade + 0.3 * sync + 0.3 * hover) * dim)
   })
+
+  // Smart label: only while hovered or when this neuron is a search hit.
+  const showLabel = hovered || activation?.role === 'hit'
+  const color = colorForType(data.type)
 
   return (
     <group ref={group} position={data.vec}>
@@ -116,6 +183,24 @@ function Neuron({ data, activation, phase, phaseAt, hovered, selected, dimmed, o
         />
       </mesh>
       <mesh geometry={SPHERE} material={glowMat} scale={1.9} raycast={() => null} />
+      <lineSegments geometry={dendriteGeo} material={dendriteMat} raycast={() => null} />
+      {showLabel && (
+        <Html position={[0, !hovered && activation?.rank % 2 === 1 ? -2.6 : 2.4, 0]} center zIndexRange={[40, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+          <div className="label-neuron animate-fade-up" style={{ '--c': color }}>
+            <div className="label-text">
+              {data.label.length > 34 ? data.label.slice(0, 33) + '…' : data.label}
+            </div>
+            <div className="label-meta">
+              {activation?.percentage != null ? (
+                <span className="label-percentage">{activation.percentage}%</span>
+              ) : (
+                <span style={{ color }}>{TYPE_LABELS[data.type]}</span>
+              )}
+              {hovered && <span className="label-hint">{data.degree} sinapsis · click</span>}
+            </div>
+          </div>
+        </Html>
+      )}
     </group>
   )
 }

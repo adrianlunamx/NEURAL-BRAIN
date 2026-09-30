@@ -1,33 +1,6 @@
 import { Html } from '@react-three/drei'
 import { colorForType, TYPE_LABELS } from '../utils/colors'
 
-/** Floating tooltip rendered inside the 3D scene next to the hovered neuron. */
-export function NeuronTooltip({ node }) {
-  if (!node) return null
-  const color = colorForType(node.type)
-  return (
-    <Html position={node.vec} zIndexRange={[40, 0]} style={{ pointerEvents: 'none' }}>
-      <div
-        className="ml-4 -translate-y-1/2 w-64 animate-fade-up rounded-md border bg-void-900/85 px-3 py-2 font-mono text-xs text-slate-200 backdrop-blur-md"
-        style={{ borderColor: color, boxShadow: `0 0 14px ${color}55` }}
-      >
-        <div className="mb-1 flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full" style={{ background: color, boxShadow: `0 0 8px ${color}` }} />
-          <span className="uppercase tracking-widest" style={{ color }}>
-            {TYPE_LABELS[node.type]}
-          </span>
-          <span className="ml-auto text-slate-500">{node.degree} sinapsis</span>
-        </div>
-        <div className="font-semibold text-white">{node.label}</div>
-        {node.content && node.content !== node.label && (
-          <p className="mt-1 line-clamp-3 text-slate-400">{node.content}</p>
-        )}
-        <div className="mt-1 text-[10px] text-slate-500">click → enfocar · info</div>
-      </div>
-    </Html>
-  )
-}
-
 /** Small label pinned to an active neuron (search results) or a concept. */
 export function NeuronLabel({ node, score, subtle = false }) {
   const color = colorForType(node.type)
