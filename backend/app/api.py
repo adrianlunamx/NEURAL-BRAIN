@@ -19,7 +19,7 @@ from .models import (
     IngestResponse, Phase, QueryHit, QueryRequest, QueryResponse,
     Region, RegionInfo, StatsResponse,
 )
-from .query_engine import run_query_phases
+from .query_engine import knowledge_hits, run_query_phases
 from .vector_store import VectorStore
 
 router = APIRouter()
@@ -94,12 +94,10 @@ async def query(req: QueryRequest) -> QueryResponse:
     global _query_task
     if _query_task is not None and not _query_task.done():
         raise HTTPException(status_code=409, detail="a query is already running; wait for IDLE")
-    hits_raw = await asyncio.to_thread(vector.semantic_search, req.text, req.top_k)
+    hits_raw = await asyncio.to_thread(vector.semantic_search, req.text, req.top_k * 3)
     hits = []
-    for h in hits_raw:
+    for h in knowledge_hits(graph, hits_raw)[:req.top_k]:
         nid = h["id"]
-        if nid not in graph.graph:
-            continue
         node = graph.graph.nodes[nid]
         pos = tuple(float(c) for c in node["position"])
         hits.append(QueryHit(

@@ -47,3 +47,11 @@ def test_git_commit_log_restore(client):
 def test_validation(client):
     assert client.post("/ingest", json={"text": ""}).status_code == 422
     assert client.post("/query", json={"text": "x", "top_k": 99}).status_code == 422
+
+
+def test_past_questions_are_not_returned_as_sources(client):
+    client.post("/ingest", json={"text": "El hipocampo consolida la memoria durante el sueño"})
+    client.post("/query", json={"text": "memoria y sueño", "top_k": 5})
+    time.sleep(0.3)
+    again = client.post("/query", json={"text": "memoria y sueño", "top_k": 5}).json()
+    assert again["hits"] and all(not h["label"].startswith("query:") for h in again["hits"])

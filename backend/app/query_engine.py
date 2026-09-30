@@ -7,6 +7,7 @@ the GraphStore are activated along the way so queries leave memory traces.
 from __future__ import annotations
 
 import asyncio
+import os
 import uuid
 from typing import Optional
 
@@ -20,7 +21,9 @@ QUERY_NEURON_POSITION = (0.0, 9.5, 0.0)   # floats above the brain, magenta
 SYNTHESIS_POSITION = (0.0, 1.2, 0.0)      # brain center, giant yellow neuron
 
 # Phase durations in seconds (tuned so each phase is readable on screen).
-TIMINGS = {"INPUT": 0.9, "SEARCH": 2.6, "CONNECT": 2.2, "SYNTHESIZE": 3.2}
+# PHASE_TIME_SCALE stretches them all (e.g. 2 for slow-motion demos).
+_SCALE = float(os.getenv("PHASE_TIME_SCALE", "1") or 1)
+TIMINGS = {k: v * _SCALE for k, v in {"INPUT": 0.9, "SEARCH": 2.6, "CONNECT": 2.2, "SYNTHESIZE": 3.2}.items()}
 # Longest we hold CONNECT waiting for Claude before synthesizing without it.
 LLM_TIMEOUT = 25.0
 
@@ -60,8 +63,8 @@ async def _run(text, top_k, bus, graph, vector, synthesizer, query_id, timings) 
 
     # ---- SEARCH: semantic scan, magenta rays to first candidates ----
     graph.set_phase(Phase.SEARCH)
-    hits = await asyncio.to_thread(vector.semantic_search, text, top_k)
-    hits = [h for h in hits if h["id"] in graph.graph]
+    hits = await asyncio.to_thread(vector.semantic_search, text, top_k * 3)
+    hits = knowledge_hits(graph, hits)[:top_k]
     # Fallback: if the vector store is empty, pick hippocampus neurons as "memory".
     if not hits:
         candidates = graph.region_index.get(Region.HIPPOCAMPUS, [])[:4]
@@ -161,6 +164,15 @@ async def _run(text, top_k, bus, graph, vector, synthesizer, query_id, timings) 
     await bus.publish("phase", {"phase": Phase.IDLE.value, "query_id": query_id})
     await bus.publish("stats", graph.stats())
     return query_id
+
+
+def knowledge_hits(graph: GraphStore, hits: list) -> list:
+    """Hits that are knowledge. Past questions are kept as memory neurons but never
+    returned as sources: repeating a question would otherwise cite itself at 100%."""
+    return [
+        h for h in hits
+        if h["id"] in graph.graph and graph.graph.nodes[h["id"]].get("source") != "query"
+    ]
 
 
 def _summarize(text: str, hits: list) -> str:
