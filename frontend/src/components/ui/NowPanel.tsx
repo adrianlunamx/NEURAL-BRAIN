@@ -58,7 +58,8 @@ export function NowPanel() {
     });
   };
 
-  const sessions = (activity?.sessions ?? []).slice(0, 3);
+  // every session the backend still lists (it drops them after 12 h without activity)
+  const sessions = activity?.sessions ?? [];
   return (
     <div className={`now-panel${folded ? " folded" : ""}`}>
       <div className="panel-cap">
@@ -81,7 +82,8 @@ export function NowPanel() {
       <div className="now-body">
         {sessions.length === 0 && <div className="muted small">Sin sesiones. Conecta los hooks o pulsa Probar.</div>}
         {sessions.map((s) => {
-          const agents = s.agents.filter((a) => !a.done).slice(0, 6);
+          // a session at rest is one line: its subagents only matter while it works
+          const agents = s.status === "en reposo" ? [] : s.agents.filter((a) => !a.done).slice(0, 6);
           return (
             <div key={s.id} className="session">
               <div className="session-head">

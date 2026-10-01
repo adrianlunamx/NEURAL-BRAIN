@@ -1,4 +1,5 @@
 import importlib.util
+import time
 from pathlib import Path
 
 from backend.app.activity import ActivityStore, derive_action
@@ -170,3 +171,35 @@ def test_demo_can_be_stopped_and_cleared(client):
     time.sleep(1.5)  # cancelled: no more demo events arrive
     assert [s["id"] for s in client.get("/activity").json()["sessions"]] == ["claude-code:real"]
     assert client.delete("/activity/demo").json()["removed"] == 0
+
+
+def test_activity_survives_a_restart(tmp_path):
+    path = tmp_path / "activity.json"
+    store = ActivityStore()
+    assert store.save(path) is False  # nothing to save yet
+    now = time.time()
+    common = dict(session_id="s1", cwd="/repo", agent_type="", target="", summary="")
+    store.record(event="PostToolUse", agent_id="", tool_name="Edit", hook_type="file_edit", action="",
+                 lines_added=4, lines_removed=1, note_id="note_x", now=now, **{**common, "target": "/repo/a.py"})
+    store.record(event="PreToolUse", agent_id="", tool_name="Agent", hook_type="agent_launch", action="",
+                 now=now + 1, **{**common, "target": "explorar"})  # launched, not started yet
+    store.record(event="Notification", agent_id="", tool_name="", hook_type="session", action="",
+                 now=now + 2, **{**common, "target": "espera tu OK"})
+    assert store.save(path) is True and store.save(path) is False  # only when something changed
+
+    restored = ActivityStore()
+    assert restored.load(path) == 1
+    before, after = store.snapshot(now + 3), restored.snapshot(now + 3)
+    for key in ("sessions", "events", "files", "totals", "note_usage"):
+        assert after[key] == before[key], key
+    s = restored.sessions["claude-code:s1"]
+    assert s.status == "esperando" and len(s.pending) == 1 and s.pending[0] is s.agents[s.pending[0].key]
+    # the pending subagent still binds when it starts after the restart
+    restored.record(event="SubagentStart", agent_id="sub-1", agent_type="Explore", tool_name="",
+                    hook_type="session", action="", now=now + 4, session_id="s1", cwd="/repo",
+                    target="", summary="")
+    assert [a["num"] for a in restored.snapshot(now + 5)["sessions"][0]["agents"]] == [1]
+
+    path.write_text("{ broken")
+    assert ActivityStore().load(path) == 0
+    assert ActivityStore().load(tmp_path / "missing.json") == 0
