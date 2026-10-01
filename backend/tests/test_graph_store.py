@@ -2,7 +2,7 @@ from collections import Counter
 
 import numpy as np
 
-from backend.app.graph_store import LOD_LEVELS, MAX_NEURONS, GraphStore
+from backend.app.graph_store import LOD_LEVELS, MAX_NEURONS, SNAPSHOT_VERSION, GraphStore
 from backend.brain_layout import classify_regions, sdf_brain
 from backend.app.models import EdgeType, Region
 
@@ -100,7 +100,7 @@ def test_v1_snapshot_is_migrated_into_the_anatomical_brain():
     pts = np.array([d["position"] for _, d in g2.graph.nodes(data=True)])
     assert (sdf_brain(pts) < 1e-3).all()
     assert g2.graph.number_of_edges() == g.graph.number_of_edges()
-    assert g2.serialize()["version"] == 2
+    assert g2.serialize()["version"] == SNAPSHOT_VERSION
 
 
 def test_serialize_roundtrip():

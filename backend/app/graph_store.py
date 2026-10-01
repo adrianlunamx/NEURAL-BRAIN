@@ -31,7 +31,9 @@ try:  # backend/ is a package when the app runs as backend.app.main
 except ImportError:  # pragma: no cover - running with backend/ on sys.path
     from brain_layout import load_into_graphstore, sample_region  # type: ignore[no-redef]
 
-SNAPSHOT_VERSION = 2  # 1 = six separate ellipsoids, 2 = anatomical brain layout
+# 1 = six separate ellipsoids, 2 = anatomical brain layout, 3 = v3 brain shape
+# (hemispheres, temporal lobe, notched cerebellum): older snapshots are re-laid out.
+SNAPSHOT_VERSION = 3
 
 MAX_NEURONS = 19000
 
@@ -148,8 +150,8 @@ class GraphStore:
             self._invalidate_recycle_heap()
             return self.graph.number_of_nodes()
 
-    def _relayout_v1(self) -> None:
-        """Move every neuron of a v1 snapshot into the anatomical brain (same region)."""
+    def _relayout(self) -> None:
+        """Move every neuron of an older snapshot into the current brain shape (same region)."""
         rng = np.random.default_rng(42)
         for region, ids in self.region_index.items():
             if not ids:
@@ -519,7 +521,7 @@ class GraphStore:
             self._invalidate_recycle_heap()
             self.notes_version += 1
             if int(data.get("version", 1)) < SNAPSHOT_VERSION:
-                self._relayout_v1()
+                self._relayout()
 
     def save_json(self, path: Path) -> None:
         path.write_text(json.dumps(self.serialize(), separators=(",", ":")), encoding="utf-8")
