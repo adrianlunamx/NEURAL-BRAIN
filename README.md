@@ -132,7 +132,7 @@ Detalle técnico en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 Requisitos: **Python 3.10+**, **Node 20.19+** y un navegador con WebGL2.
 
 ```bash
-git clone https://github.com/jhernandezl2c-hash/NEURAL-BRAIN.git neural-brain && cd neural-brain
+git clone https://github.com/adrianlunamx/NEURAL-BRAIN.git neural-brain && cd neural-brain
 ./scripts/setup.sh        # venv + dependencias de Python y npm (sin PyTorch: ~400 MB)
 ./scripts/run.sh          # API en :8000 + interfaz en :5173
 ```
