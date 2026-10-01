@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import api
+from .activity import ActivityStore
 from .events import EventBus
 from .git_store import GitStore
 from .graph_store import GraphStore
@@ -40,6 +41,8 @@ API_PORT = int(os.getenv("API_PORT", "8000"))
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 CHROMA_DIR = _path("CHROMA_DIR", "data/chroma")
 GRAPH_REPO_DIR = _path("GRAPH_REPO_DIR", "data/graph_repo")
+# live agent activity ("Ahora" panel), so a restart does not forget the sessions
+ACTIVITY_FILE = _path("ACTIVITY_FILE", "data/activity.json")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 EMBEDDING_BACKEND = os.getenv("EMBEDDING_BACKEND", "auto")
 AUTO_COMMIT_EVERY = int(os.getenv("AUTO_COMMIT_EVERY", "25"))
@@ -79,13 +82,22 @@ async def lifespan(app: FastAPI):
     synthesizer = Synthesizer()
     print(f"[neural-brain] embeddings: {vector.model_name} · Claude: "
           f"{synthesizer.model if synthesizer.enabled else 'off (no ANTHROPIC_API_KEY)'}")
-    api.init(bus, graph, vector, gitstore, synthesizer)
+    activity = ActivityStore()
+    restored_sessions = activity.load(ACTIVITY_FILE)
+    if restored_sessions:
+        print(f"[neural-brain] activity restored: {restored_sessions} sessions")
+    api.init(bus, graph, vector, gitstore, synthesizer, activity)
     app.state.bus = bus
     app.state.graph = graph
 
     async def autocommit_loop() -> None:
         while True:
             await asyncio.sleep(5)
+            try:
+                # stop.ps1 kills the process: save often instead of only on shutdown
+                await asyncio.to_thread(activity.save, ACTIVITY_FILE)
+            except OSError as exc:
+                print(f"[neural-brain] activity not saved: {exc}")
             commit_hash = await asyncio.to_thread(gitstore.maybe_auto_commit)
             if commit_hash:
                 print(f"[neural-brain] auto-commit {commit_hash}")
@@ -94,6 +106,10 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(autocommit_loop())
     yield
     task.cancel()
+    try:
+        activity.save(ACTIVITY_FILE)
+    except OSError as exc:
+        print(f"[neural-brain] activity not saved: {exc}")
     try:
         await asyncio.to_thread(gitstore.snapshot, "shutdown snapshot")
     except Exception as exc:  # graph.json is written first, so nothing is lost

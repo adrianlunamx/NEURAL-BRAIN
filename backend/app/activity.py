@@ -7,18 +7,21 @@ markers that travel across the notes graph.
 """
 from __future__ import annotations
 
+import json
+import os
 import re
 import threading
 import time
 import uuid
 from collections import deque
-from dataclasses import dataclass, field
-from pathlib import PurePath
+from dataclasses import asdict, dataclass, field
+from pathlib import Path, PurePath
 from typing import Callable, Deque, Dict, List, Optional
 
 WINDOW_FILES_SECONDS = 30 * 60   # "Programando (última media hora)"
 IDLE_SECONDS = 5 * 60            # no events for this long -> "en reposo"
-SESSION_TTL_SECONDS = 2 * 60 * 60
+SESSION_TTL_SECONDS = 12 * 60 * 60  # sessions at rest stay listed for half a day
+STORE_VERSION = 1
 RATE_SECONDS = 120               # waveform length
 
 _TEST = re.compile(r"\b(pytest|jest|vitest|mocha|unittest|test|tests|spec)\b")
@@ -97,6 +100,55 @@ class ActivityStore:
         self.rate: Dict[int, int] = {}
         self.totals: Dict[str, int] = {}
         self.note_usage: Dict[str, int] = {}   # note id -> times an action touched it
+        self.dirty = False                     # changed since the last save()
+
+    # ------------------------------------------------------------------ persistence
+    def save(self, path: Path) -> bool:
+        """Write sessions, recent events, edits and counters to `path` (atomically)
+        if anything changed since the last save. Returns True when it wrote."""
+        with self.lock:
+            if not self.dirty:
+                return False
+            data = {
+                "version": STORE_VERSION,
+                "sessions": [asdict(s) for s in self.sessions.values()],
+                "events": list(self.events),
+                "edits": list(self.edits),
+                "totals": dict(self.totals),
+                "note_usage": dict(self.note_usage),
+            }
+            self.dirty = False
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
+        os.replace(tmp, path)
+        return True
+
+    def load(self, path: Path) -> int:
+        """Restore what save() wrote (missing or unreadable file: start empty).
+        Returns the number of sessions restored."""
+        try:
+            data = json.loads(Path(path).read_text(encoding="utf-8"))
+            sessions: Dict[str, Session] = {}
+            for raw in data.get("sessions", []):
+                agents = {k: Agent(**a) for k, a in raw.pop("agents", {}).items()}
+                pending = [agents[a["key"]] for a in raw.pop("pending", []) if a.get("key") in agents]
+                s = Session(**raw, agents=agents, pending=pending)
+                if "main" in s.agents:
+                    sessions[s.id] = s
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            if Path(path).exists():
+                print(f"[neural-brain] activity not restored ({exc}); starting empty")
+            return 0
+        with self.lock:
+            self.sessions = sessions
+            self.events = deque(data.get("events", []), maxlen=self.events.maxlen)
+            self.edits = deque(data.get("edits", []), maxlen=self.edits.maxlen)
+            self.totals = dict(data.get("totals", {}))
+            self.note_usage = dict(data.get("note_usage", {}))
+            self.dirty = False
+        return len(sessions)
 
     # ------------------------------------------------------------------
     def _session(self, session_id: str, cwd: str, now: float, client: str = "claude-code") -> Session:
@@ -198,6 +250,7 @@ class ActivityStore:
                 "lines_removed": lines_removed,
             }
             self.events.append(item)
+            self.dirty = True
             return item
 
     def forget(self, match: Callable[[str], bool]) -> int:
@@ -211,6 +264,7 @@ class ActivityStore:
                                 maxlen=self.events.maxlen)
             self.edits = deque((e for e in self.edits if not match(e.get("session", ""))),
                                maxlen=self.edits.maxlen)
+            self.dirty = True
             return len(gone)
 
     # ------------------------------------------------------------------
@@ -219,6 +273,7 @@ class ActivityStore:
         with self.lock:
             for sid in [k for k, s in self.sessions.items() if now - s.last_at > SESSION_TTL_SECONDS]:
                 del self.sessions[sid]
+                self.dirty = True
             sessions = []
             for s in sorted(self.sessions.values(), key=lambda x: -x.last_at):
                 status = s.status

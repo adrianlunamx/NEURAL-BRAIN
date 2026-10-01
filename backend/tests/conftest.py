@@ -22,5 +22,6 @@ def client(tmp_path, monkeypatch, fast_phases):
 
     monkeypatch.setattr(main, "CHROMA_DIR", tmp_path / "chroma")
     monkeypatch.setattr(main, "GRAPH_REPO_DIR", tmp_path / "graph_repo")
+    monkeypatch.setattr(main, "ACTIVITY_FILE", tmp_path / "activity.json")
     with TestClient(main.app) as c:
         yield c
