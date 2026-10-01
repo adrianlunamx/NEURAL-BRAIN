@@ -1,13 +1,13 @@
-// v2.1 anatomical brain: shared constants for the shell, region labels and camera.
+// v3 anatomical brain: shared constants for the shell, region labels and camera.
 // Mirrors backend/brain_layout.py (lateral view: x = front(+)/back(-), y = up, z = right/left).
 import { Region } from "../types";
 
 type V3 = [number, number, number];
 
-/** Sampling box that contains the whole brain (v2.1: x max 6.0 for the rounded frontal pole). */
+/** Sampling box that contains the whole brain. */
 export const BRAIN_BOUNDS: { min: V3; max: V3 } = {
-  min: [-6.0, -5.0, -3.5],
-  max: [6.0, 4.0, 3.5],
+  min: [-6.0, -5.0, -4.0],
+  max: [6.0, 4.4, 4.0],
 };
 
 /** Visual centre of the brain; camera target for HOME. */
@@ -32,20 +32,29 @@ export const SHELL_STYLE = {
  * `anchor`, when present, draws a guide line from the label to that point of the region.
  */
 export const REGION_LABELS: { region: Region; text: string; position: V3; anchor?: V3 }[] = [
-  { region: "frontal", text: "FRONTAL", position: [3.6, 3.9, 0.6] },
-  { region: "parietal", text: "PARIETAL", position: [-0.6, 4.3, 0.6] },
-  { region: "occipital", text: "OCCIPITAL", position: [-4.6, 2.4, 0.6] },
-  { region: "temporal", text: "TEMPORAL", position: [2.4, -2.5, 2.6] },
-  // v2.1: below-centre and in front, clear of the yellow SYNTHESIZE core, with a long guide line.
-  { region: "hippocampus", text: "HIPOCAMPO", position: [-0.6, -3.8, 2.4], anchor: [-0.2, -0.8, 0.6] },
-  { region: "cerebellum", text: "CEREBELO", position: [-3.9, -4.4, 1.2] },
+  { region: "frontal", text: "FRONTAL", position: [3.6, 3.6, 0.6] },
+  { region: "parietal", text: "PARIETAL", position: [-0.8, 4.5, 0.6] },
+  { region: "occipital", text: "OCCIPITAL", position: [-5.0, 2.3, 0.6] },
+  { region: "temporal", text: "TEMPORAL", position: [2.0, -3.3, 2.8] },
+  // below-centre and in front, clear of the yellow SYNTHESIZE core, with a long guide line.
+  { region: "hippocampus", text: "HIPOCAMPO", position: [-0.6, -3.9, 2.4], anchor: [0.4, -1.2, 1.35] },
+  { region: "cerebellum", text: "CEREBELO", position: [-3.9, -4.4, 1.4] },
 ];
 
 // --------------------------------------------------------------- brain SDF
-// Same primitives as sdf_brain() in backend/brain_layout.py (v2.1) — keep in sync.
-const CEREBRUM = { center: [0.5, 0.3, 0] as V3, radii: [4.2, 3.4, 2.8] as V3 };
-const FRONTAL_BULGE = { center: [3.6, 0.4, 0] as V3, radii: [1.8, 2.5, 2.3] as V3 };
-const BRAINSTEM = { center: [-1.6, -3.2, 0] as V3, radii: [0.7, 1.4, 0.7] as V3 };
+// Same primitives as sdf_brain() in backend/brain_layout.py (v3) — keep in sync.
+// Hemisphere parts are given for z > 0 and mirrored (evaluated with |z|).
+type Ellipsoid = { center: V3; radii: V3 };
+const HEMI_MAIN: Ellipsoid = { center: [-0.5, 0.95, 1.55], radii: [4.2, 2.85, 2.0] };
+const HEMI_FRONTAL: Ellipsoid = { center: [2.45, 0.5, 1.3], radii: [2.55, 2.4, 1.75] };
+const HEMI_OCCIPITAL: Ellipsoid = { center: [-3.15, 0.35, 1.2], radii: [2.05, 2.0, 1.6] };
+const TEMPORAL_LOBE: Ellipsoid = { center: [0.85, -1.45, 1.85], radii: [2.65, 1.2, 1.3] };
+const CORE: Ellipsoid = { center: [-0.3, -0.35, 0], radii: [3.1, 1.7, 1.5] };
+const CEREBELLUM: Ellipsoid = { center: [-3.0, -2.55, 1.1], radii: [1.65, 1.1, 1.45] };
+const VERMIS: Ellipsoid = { center: [-3.0, -2.45, 0], radii: [1.35, 1.0, 0.75] };
+const BRAINSTEM = { a: [-0.55, -1.1, 0] as V3, b: [-1.25, -4.2, 0] as V3, r: 0.46 };
+const PONS: Ellipsoid = { center: [-0.75, -2.45, 0], radii: [0.85, 0.9, 0.85] };
+const HIPPOCAMPUS: Ellipsoid = { center: [0.4, -1.2, 1.35], radii: [1.75, 0.62, 0.68] };
 
 function smin(a: number, b: number, k: number): number {
   const h = Math.min(1, Math.max(0, 0.5 + (0.5 * (b - a)) / k));
@@ -57,46 +66,64 @@ function smoothstep(e0: number, e1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** Signed distance to the brain surface (< 0 inside). */
-export function sdfBrain(p: V3): number {
-  let cer = sdEllipsoid(p, CEREBRUM.center, CEREBRUM.radii);
-  cer = Math.max(cer, -1.4 - p[1]);
-  cer += 0.45 * (1 - smoothstep(0, 0.35, Math.abs(p[2]))) * smoothstep(0.6, 1.8, p[1]);
-  cer = smin(cer, sdEllipsoid(p, FRONTAL_BULGE.center, FRONTAL_BULGE.radii), 0.9);
-  const d = smin(cer, sdEllipsoid(p, CEREBELLUM.center, CEREBELLUM.radii), 1.3);
-  return smin(d, sdEllipsoid(p, BRAINSTEM.center, BRAINSTEM.radii), 0.7);
-}
-
-// --------------------------------------------------------------- region SDF
-// Same primitives and priorities as classify_regions() in backend/brain_layout.py — keep in sync.
-const CEREBELLUM = { center: [-2.6, -2.6, 0] as V3, radii: [1.7, 1.4, 1.5] as V3 };
-const HIPPOCAMPUS = { center: [-0.2, -0.8, 0] as V3, radii: [1.3, 0.9, 1.0] as V3 };
-
 /** Approximate signed distance to an axis-aligned ellipsoid (< 0 inside). */
-function sdEllipsoid(p: V3, center: V3, radii: V3): number {
+function sdEllipsoid(p: V3, e: Ellipsoid): number {
   let k0 = 0;
   let k1 = 0;
   for (let i = 0; i < 3; i++) {
-    const q = (p[i] - center[i]) / radii[i];
+    const q = (p[i] - e.center[i]) / e.radii[i];
     k0 += q * q;
-    k1 += (q / radii[i]) ** 2;
+    k1 += (q / e.radii[i]) ** 2;
   }
   k0 = Math.sqrt(k0);
   k1 = Math.sqrt(k1);
   return (k0 * (k0 - 1)) / Math.max(k1, 1e-12);
 }
 
+/** Exact signed distance to the segment a-b inflated by r. */
+function sdCapsule(p: V3, a: V3, b: V3, r: number): number {
+  const pa = [p[0] - a[0], p[1] - a[1], p[2] - a[2]];
+  const ba = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const h = Math.min(1, Math.max(0, (pa[0] * ba[0] + pa[1] * ba[1] + pa[2] * ba[2]) /
+    (ba[0] * ba[0] + ba[1] * ba[1] + ba[2] * ba[2])));
+  return Math.hypot(pa[0] - h * ba[0], pa[1] - h * ba[1], pa[2] - h * ba[2]) - r;
+}
+
+/** Distances to the cerebrum, cerebellum and brainstem (each smooth). */
+function parts(p: V3): { cerebrum: number; cerebellum: number; stem: number } {
+  const q: V3 = [p[0], p[1], Math.abs(p[2])];
+  let hemi = smin(sdEllipsoid(q, HEMI_MAIN), sdEllipsoid(q, HEMI_FRONTAL), 0.9);
+  hemi = smin(hemi, sdEllipsoid(q, HEMI_OCCIPITAL), 0.9);
+  hemi = smin(hemi, sdEllipsoid(q, TEMPORAL_LOBE), 0.3);
+  hemi += 0.35 * (1 - smoothstep(0, 0.37, q[2])) * smoothstep(0.2, 1.4, p[1]);  // longitudinal fissure
+  return {
+    cerebrum: smin(hemi, sdEllipsoid(p, CORE), 0.6),
+    cerebellum: smin(sdEllipsoid(q, CEREBELLUM), sdEllipsoid(p, VERMIS), 0.4),
+    stem: smin(sdCapsule(p, BRAINSTEM.a, BRAINSTEM.b, BRAINSTEM.r), sdEllipsoid(p, PONS), 0.35),
+  };
+}
+
+/** Signed distance to the (smooth) brain surface (< 0 inside). */
+export function sdfBrain(p: V3): number {
+  const d = parts(p);
+  return smin(smin(d.cerebrum, d.cerebellum, 0.25), d.stem, 0.4);
+}
+
+// --------------------------------------------------------------- regions
 /**
- * Region of a point inside the brain.
- * Priority: cerebellum > frontal > occipital > parietal > temporal > hippocampus > fallback.
+ * Region of a point inside the brain. Same rules as classify_regions() in
+ * backend/brain_layout.py — keep in sync. Later rules win: parietal (default) <
+ * frontal (in front of the slanted central sulcus) < occipital < temporal lobe <
+ * hippocampus < cerebellum (+ brainstem).
  */
 export function classifyRegion(p: V3): Region {
-  const [x, y, z] = p;
-  if (sdEllipsoid(p, CEREBELLUM.center, CEREBELLUM.radii) < 0) return "cerebellum";
-  if (x > 1.8) return "frontal";
-  if (x < -1.6) return "occipital";
-  if (y > 1.2) return "parietal";
-  if (Math.abs(z) > 1.2) return "temporal";
-  if (sdEllipsoid(p, HIPPOCAMPUS.center, HIPPOCAMPUS.radii) < 0) return "hippocampus";
-  return y < 0 ? "temporal" : "parietal";
+  const [x, y] = p;
+  const q: V3 = [p[0], p[1], Math.abs(p[2])];
+  const d = parts(p);
+  if (d.cerebellum < 0 || (d.stem < 0 && d.cerebrum > 0)) return "cerebellum";
+  if (sdEllipsoid(q, HIPPOCAMPUS) < 0) return "hippocampus";
+  if ((sdEllipsoid(q, TEMPORAL_LOBE) < 0 && y < -0.4) || (q[2] > 1.9 && y < 0.1 && x > -2.2 && x < 3.0)) return "temporal";
+  if (x - 0.25 * y < -2.5) return "occipital";
+  if (x + 0.35 * y > 1.3) return "frontal";
+  return "parietal";
 }
