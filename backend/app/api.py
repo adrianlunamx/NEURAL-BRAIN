@@ -269,10 +269,19 @@ async def hook_event(req: HookEventRequest) -> HookEventResponse:
 
 
 # ------------------------------------------------------------------ activity
+def _is_demo(session_id: str) -> bool:
+    """Sessions created by "Probar" (demo.py): "<client>:demo-<project>-<run>"."""
+    return session_id.split(":", 1)[-1].startswith("demo-")
+
+
+def _activity_snapshot() -> dict:
+    return {**activity.snapshot(), "demo_running": _demo_task is not None and not _demo_task.done()}
+
+
 @router.get("/activity")
 async def get_activity() -> dict:
     """Sessions, subagents, recent actions, files edited in the last 30 min, event rate."""
-    return activity.snapshot()
+    return _activity_snapshot()
 
 
 @router.post("/activity/demo")
@@ -284,6 +293,21 @@ async def activity_demo() -> dict:
     from .demo import run_demo
     _demo_task = asyncio.create_task(run_demo(record_hook))
     return {"ok": True, "running": False}
+
+
+@router.delete("/activity/demo")
+async def stop_activity_demo() -> dict:
+    """Stop "Probar" and clear its simulated sessions, actions and edited files."""
+    global _demo_task
+    if _demo_task is not None and not _demo_task.done():
+        _demo_task.cancel()
+        try:
+            await _demo_task
+        except asyncio.CancelledError:
+            pass
+    _demo_task = None
+    removed = activity.forget(_is_demo)
+    return {"ok": True, "removed": removed, "activity": _activity_snapshot()}
 
 
 # ------------------------------------------------------------------ regions / stats

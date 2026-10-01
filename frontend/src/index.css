@@ -230,6 +230,12 @@ kbd {
 }
 .now-panel .probar:hover { border-color: var(--accent); color: var(--accent); }
 .now-panel .probar:disabled { opacity: 0.4; }
+.now-panel .fold {
+  background: transparent; border: 1px solid var(--rule-strong); width: 20px; padding: 1px 0;
+  font-family: var(--mono); font-size: 10px; line-height: 1.2; color: var(--muted);
+}
+.now-panel .fold:hover { border-color: var(--accent); color: var(--accent); }
+.now-panel.folded .panel-cap { border-bottom: 0; }
 .now-body { padding: 8px 10px; }
 .live-dot { width: 7px; height: 7px; background: var(--faint); flex: none; }
 .live-dot.on { background: var(--good); animation: blink 1.6s steps(2, jump-none) infinite; }

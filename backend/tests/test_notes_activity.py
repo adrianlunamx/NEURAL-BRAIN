@@ -146,3 +146,27 @@ def test_notes_and_activity_api(client):
     assert act["sessions"][0]["project"] == "repo" and act["sessions"][0]["status"] == "en reposo"
     assert act["events"][1]["action"] == "lee" and act["events"][1]["note_id"] == titles["CLAUDE.md"]["id"]
     assert act["note_usage"] == {titles["CLAUDE.md"]["id"]: 1}
+
+
+def test_demo_can_be_stopped_and_cleared(client):
+    import time
+
+    client.post("/hooks/event", json={"event": "PostToolUse", "hook_type": "file_edit", "tool_name": "Edit",
+                                      "target": "/repo/app.py", "cwd": "/repo", "session_id": "real",
+                                      "lines_added": 3})
+    assert client.post("/activity/demo").json()["ok"]
+    deadline = time.time() + 10
+    while not any(":demo-" in s["id"] for s in client.get("/activity").json()["sessions"]):
+        assert time.time() < deadline, "the demo never produced a session"
+        time.sleep(0.1)
+    assert client.get("/activity").json()["demo_running"] is True
+
+    stopped = client.delete("/activity/demo").json()
+    act = stopped["activity"]
+    assert stopped["removed"] >= 1 and act["demo_running"] is False
+    assert [s["id"] for s in act["sessions"]] == ["claude-code:real"]
+    assert {e["session_id"] for e in act["events"]} == {"claude-code:real"}
+    assert [f["path"] for f in act["files"]] == ["/repo/app.py"]
+    time.sleep(1.5)  # cancelled: no more demo events arrive
+    assert [s["id"] for s in client.get("/activity").json()["sessions"]] == ["claude-code:real"]
+    assert client.delete("/activity/demo").json()["removed"] == 0
