@@ -174,6 +174,20 @@ cd frontend && npm install && cp .env.example .env && npm run dev
 
 `make` · `setup` `run` `backend` `frontend` `test` `build` `seed` `hooks` `unhooks` `hook-test` `clean` (borra el cerebro: vectores + repo Git del grafo).
 
+<details>
+<summary><b>Verlo desde otra computadora</b></summary>
+
+En `frontend/.env` pon `VITE_API_URL=/api` (la API pasa por el mismo puerto que la interfaz) y `BRAIN_PASSWORD=<una contraseña>` (pide usuario y contraseña; el usuario da igual). Reinicia y publica solo el puerto 5173:
+
+```bash
+tailscale serve --bg 5173    # solo tus equipos de Tailscale
+tailscale funnel --bg 5173   # URL pública: cualquiera con el enlace llega a la contraseña
+tailscale funnel --https=443 off   # apagarlo
+```
+
+El cerebro muestra tus prompts, comandos y notas: no lo publiques sin contraseña.
+</details>
+
 ## Conectar tu agente
 
 Todos los adaptadores usan solo la biblioteca estándar de Python, tienen un timeout de 2 s y **nunca bloquean al agente**: si el cerebro está apagado, lo detectan en 0,25 s y el agente sigue igual.
