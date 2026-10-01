@@ -210,4 +210,6 @@ export interface ActivitySnapshot {
   rate: number[];
   totals: Record<string, number>;
   note_usage: Record<string, number>;
+  /** "Probar" is replaying its simulated session */
+  demo_running?: boolean;
 }

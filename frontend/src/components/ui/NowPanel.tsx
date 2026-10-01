@@ -10,36 +10,74 @@ function since(ts: number, now: number): string {
   return s < 60 ? "ahora" : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h`;
 }
 
+const FOLDED_KEY = "neural-brain.now-panel.folded";
+
+function readFolded(): boolean {
+  try {
+    return localStorage.getItem(FOLDED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 /** "Ahora": live agent sessions (Claude Code, Cursor, Codex...), their subagents, recent actions and edited files. */
 export function NowPanel() {
   const activity = useNotesStore((s) => s.activity);
   const connected = useNotesStore((s) => s.connected);
   const view = useNotesStore((s) => s.view);
   const [busy, setBusy] = useState(false);
+  const [folded, setFolded] = useState(readFolded);
   const groupColor = new Map(view?.groups.map((g) => [g.name, g.color]) ?? []);
   const noteGroup = new Map(view?.notes.map((n) => [n.id, n.group]) ?? []);
   const now = activity?.now ?? Date.now() / 1000;
+  // running, or finished but its simulated sessions are still listed
+  const demoOn = !!activity?.demo_running || !!activity?.sessions.some((s) => s.id.includes(":demo-"));
 
   const demo = async () => {
     setBusy(true);
     try {
-      await fetch(`${API_URL}/activity/demo`, { method: "POST" });
+      if (demoOn) {
+        const res = await fetch(`${API_URL}/activity/demo`, { method: "DELETE" });
+        useNotesStore.getState().setActivity((await res.json()).activity);
+      } else {
+        await fetch(`${API_URL}/activity/demo`, { method: "POST" });
+      }
     } finally {
-      setTimeout(() => setBusy(false), 1500);
+      setTimeout(() => setBusy(false), demoOn ? 300 : 1500);
     }
+  };
+
+  const toggleFolded = () => {
+    setFolded((f) => {
+      try {
+        localStorage.setItem(FOLDED_KEY, f ? "0" : "1");
+      } catch {
+        // storage blocked: the panel just won't remember it
+      }
+      return !f;
+    });
   };
 
   const sessions = (activity?.sessions ?? []).slice(0, 3);
   return (
-    <div className="now-panel">
+    <div className={`now-panel${folded ? " folded" : ""}`}>
       <div className="panel-cap">
         <span className={`live-dot${connected ? " on" : ""}`} />
         <span className="cap"><b>Ahora</b> · {connected ? "conectado" : "sin conexión"}</span>
-        <button className="probar" onClick={() => void demo()} disabled={busy} title="Simula dos agentes trabajando (Claude Code y Cursor)">
-          Probar
+        <button
+          className="probar"
+          onClick={() => void demo()}
+          disabled={busy}
+          title={demoOn ? "Detiene la simulación y borra sus sesiones" : "Simula dos agentes trabajando (Claude Code y Cursor)"}
+        >
+          {demoOn ? "Detener" : "Probar"}
+        </button>
+        <button className="fold" onClick={toggleFolded} title={folded ? "Mostrar el panel" : "Ocultar el panel"} aria-expanded={!folded}>
+          {folded ? "+" : "−"}
         </button>
       </div>
 
+      {!folded && <>
       <div className="now-body">
         {sessions.length === 0 && <div className="muted small">Sin sesiones. Conecta los hooks o pulsa Probar.</div>}
         {sessions.map((s) => {
@@ -105,6 +143,7 @@ export function NowPanel() {
           </div>
         </>
       )}
+      </>}
     </div>
   );
 }

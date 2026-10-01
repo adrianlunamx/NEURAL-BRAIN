@@ -14,7 +14,7 @@ import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import PurePath
-from typing import Deque, Dict, List, Optional
+from typing import Callable, Deque, Dict, List, Optional
 
 WINDOW_FILES_SECONDS = 30 * 60   # "Programando (última media hora)"
 IDLE_SECONDS = 5 * 60            # no events for this long -> "en reposo"
@@ -172,7 +172,7 @@ class ActivityStore:
                 self.note_usage[note_id] = self.note_usage.get(note_id, 0) + 1
 
             if lines_added or lines_removed:
-                self.edits.append({"ts": now, "path": target, "project": s.project,
+                self.edits.append({"ts": now, "path": target, "project": s.project, "session": s.id,
                                    "added": lines_added, "removed": lines_removed})
             sec = int(now)
             self.rate[sec] = self.rate.get(sec, 0) + 1
@@ -199,6 +199,19 @@ class ActivityStore:
             }
             self.events.append(item)
             return item
+
+    def forget(self, match: Callable[[str], bool]) -> int:
+        """Drop the sessions whose id matches, with their events and edited files.
+        Returns how many sessions were removed."""
+        with self.lock:
+            gone = [sid for sid in self.sessions if match(sid)]
+            for sid in gone:
+                del self.sessions[sid]
+            self.events = deque((e for e in self.events if not match(e["session_id"])),
+                                maxlen=self.events.maxlen)
+            self.edits = deque((e for e in self.edits if not match(e.get("session", ""))),
+                               maxlen=self.edits.maxlen)
+            return len(gone)
 
     # ------------------------------------------------------------------
     def snapshot(self, now: Optional[float] = None) -> dict:

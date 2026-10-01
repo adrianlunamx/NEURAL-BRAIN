@@ -10,6 +10,7 @@ Base `http://localhost:8000` · Swagger en `/docs`. Modelos en `backend/app/mode
 | GET | `/notes` | — | `{notes:[{id,title,group,type,text,tags,path,source,created_at,region,neuron_ids,position,degree}], links:[{source,target,type,weight}], groups:[{name,color,region,anchor,count}], types, link_types, problems:[{kind,note_id,detail}], generated_at}` |
 | GET | `/activity` | — | `{now, sessions:[{id,project,status,detail,main,agents[],active_agents}], events[], files:[{path,project,added,removed,last_at}], rate[120], totals, note_usage}` |
 | POST | `/activity/demo` | — | `{ok, running}` — sesión simulada por el mismo camino que los hooks |
+| DELETE | `/activity/demo` | — | `{ok, removed, activity}` — detiene «Probar» y borra sus sesiones, acciones y archivos simulados |
 | POST | `/query` | `{text, top_k=8}` (1–20) | `{query_id, hits:[{id,label,region,score,position}]}`; 409 si ya hay una consulta en curso |
 | GET | `/graph?detail=` | `low` `medium` `high` `ultra` | `{nodes:[{id,label,region,x,y,z,size,color}], edges:[{source,target,weight,type}], total_neurons, detail}` |
 | GET | `/fibers` | — | `[{source,target,start,end,weight}]` |
